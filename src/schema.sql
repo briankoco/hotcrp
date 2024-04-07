@@ -623,16 +623,15 @@ CREATE TABLE `TopicInterest` (
 
 
 --
--- Table structure for table `UserVMs`
+-- Table structure for table `VMs`
 --
 
-DROP TABLE IF EXISTS `UserVMs`;
-CREATE TABLE `UserVMs` (
+DROP TABLE IF EXISTS `VMs`;
+CREATE TABLE `VMs` (
   `vmid` int(11) NOT NULL,
   `vmtype` varchar(32) NOT NULL,
-  `vmnode` varchar(32) NOT NULL,
-  `vmcluster` varchar(256) NOT NULL,
-  `createHash` varchar(256) NOT NULL,
+  `vmdesc` varchar(256) NOT NULL,
+  `vmcluster` varchar(32) NOT NULL,
   `contactId` int(11) NOT NULL,
   `paperId` int(11),
   `reviewerVisible` BOOLEAN NOT NULL DEFAULT False,
@@ -641,20 +640,18 @@ CREATE TABLE `UserVMs` (
   `delete_time` DATETIME,
   `last_changed` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `active` BOOLEAN NOT NULL DEFAULT True,
-  PRIMARY KEY (`vmid`, `contactId`, `createHash`)
+  PRIMARY KEY (`vmid`, `contactId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-DROP TABLE IF EXISTS `UserVMLogs`;
-CREATE TABLE `UserVMLogs` (
-  `vmid` int(11) NOT NULL,
-  `createHash` varchar(256) NOT NULL,
+DROP TABLE IF EXISTS `ClusterUsers`;
+CREATE TABLE `ClusterUsers` (
+  `vmcluster` varchar(32) NOT NULL,
   `contactId` int(11) NOT NULL,
-  `mac` varchar(64) NOT NULL,
-  `ipv4` varchar(64),
-  `ipv6` varchar(64),
-  `seen_first` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `seen_last` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`vmid`, `contactId`, `createHash`, `mac`, `ipv4`, `ipv6`)
+  `uid` varchar(64) NOT NULL,
+  `pass` varchar(64) NOT NULL,
+  `used_first` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `used_last` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`vmcluster`, `contactId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Initial settings

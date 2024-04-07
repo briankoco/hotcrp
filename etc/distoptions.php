@@ -236,6 +236,9 @@ $Opt["smartScoreCompare"] = true;
 
 // CLUSTER INFO FOR VMs
 //
+//
+// clusterName	     Name of the cluster used
+//
 // clusterUser       Username for HotCRP admin on the cluster
 //
 // clusterPass	     Password for HotCRP admin on the cluster
