@@ -1,0 +1,9 @@
+apt update
+apt install -y emacs apache2 php mariadb-server php-fpm php-intl exim4-daemon-heavy php-mysql php-mbstring php-curl
+sudo a2enmod php8.1
+sudo service apache2 restart
+sudo mysql << eof
+CREATE USER 'test'@localhost IDENTIFIED BY 'testpass';
+GRANT ALL PRIVILEGES ON *.* TO 'test'@localhost IDENTIFIED BY 'testpass';
+eof
+bash lib/createdb.sh
