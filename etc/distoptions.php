@@ -233,3 +233,10 @@ $Opt["smartScoreCompare"] = true;
 //                   paper format checker).
 //   banalLimit      Limit on number of parallel paper format checker
 //                   executions. Defaults to 8.
+
+// CLUSTER INFO FOR VMs
+//
+// clusterUser       Username for HotCRP admin on the cluster
+//
+// clusterPass	     Password for HotCRP admin on the cluster
+//

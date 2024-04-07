@@ -3,6 +3,7 @@
 // Copyright (c) 2006-2024 Eddie Kohler; see LICENSE.
 
 class Home_Page {
+
     /** @var Conf
      * @readonly */
     public $conf;
@@ -467,6 +468,10 @@ class Home_Page {
         }
 
         echo "</div>\n";
+	if ($user->is_reviewer()) {
+		echo "<!-- this is a hidden comment for debugging -->";
+        	$this->print_vm_interface($user);
+	}
     }
 
     // Review token printing
@@ -512,6 +517,290 @@ class Home_Page {
                 '" class="attention">Review proposals</a> <span class="barsep">·</span> ';
         }
         echo '<a href="', $conf->hoturl("mail", "monreq=1"), '">Monitor requested reviews</a></div>', "\n";
+    }
+    /*
+     * New function to enable VM integration
+     */
+    private function print_vm_interface(Contact $user) {
+
+        include_once('src/pve_api/pve_functions.php');
+        $conf = $user->conf;
+        $any_open = false;
+        if ($user->is_empty()) {
+            return;
+        }
+
+        echo '<div class="homegrp" id="homeau">',
+            $this->print_h2_home("Artifact Evaluation VMs");
+        echo '            <button onClick="location.reload();"><span style="color:gray" align="center"><b>&#x1f5d8;</b></span>Reload</button>';
+
+        if (($email = trim($user->email ?? "")) === "") {
+            return JsonResult::make_missing_error("email");
+        }
+
+        if (!($db = $user->conf->contactdb())) {
+            $db = $user->conf->dblink;
+        }
+        $result = Dbl::qe($db, "select contactId from ContactInfo where email = ? and not disabled order by email asc limit 1", $email);
+        $vms = array();
+        
+        foreach ($result as $cidkey => $cid) {
+            if ($user->is_admin()) {
+                $vmdata = Dbl::qe($db, "select * from UserVMs WHERE active = 1");
+            //} elseif ($user->is_vm_user()) {
+            } else {
+                $vmdata = Dbl::qe($db, "SELECT * FROM UserVMs WHERE contactId = ? AND active = 1 UNION SELECT UserVMs.* FROM PaperReview,UserVMs WHERE PaperReview.paperId = UserVMs.paperId AND PaperReview.contactId = ? AND UserVMs.reviewerVisible = 1 AND UserVMs.active = 1 UNION SELECT UserVMs.* FROM Paper,UserVMs WHERE authorInformation LIKE ".Dbl::utf8ci("'%\t?ls\t%'")." AND Paper.paperId = UserVMs.paperId AND UserVMs.active = 1 AND UserVMs.authorVisible = 1 ORDER BY vmid;", $cid['contactId'], $cid['contactId'], $email);
+            };
+            foreach ($vmdata as $key => $vm){
+                $vmconfig = get_vm_connect_config($this->conf);
+                $vmconfig = update_vm_config($vm['vmid'], $vmconfig, $db);
+                $vm_status = get_vm_status($vm['vmid'], $vmconfig);
+                
+                // Find owner
+                $vm_owner_qry = Dbl::qe($db, "select email from ContactInfo where contactId = ? and not disabled order by email asc limit 1", $vm['contactId']);
+                $vm_owner = '';
+                $vm_owner_self = false;
+                foreach ($vm_owner_qry as $key => $vm_owner_mail){
+                    if ($vm_owner_mail) {
+                        if ($vm_owner_mail['email'] == $email) {
+                            $vm_owner = '<b>'.$vm_owner_mail['email'].'</b>';
+                            $vm_owner_self = true;
+                        } else {
+                            if ($user->is_admin()) {
+                                $vm_owner = '<i>'.$vm_owner_mail['email'].'</i>';
+                            } else {
+                                // Always blinding author/reviewer names for now
+                                $reviewer_data = Dbl::qe($db, "SELECT paperId from PaperReview WHERE paperId = ? AND contactId = ?;", $vm['paperId'], $vm['contactId']);
+                                $rpaper = false;
+                                foreach ($reviewer_data as $rkey => $rval) {
+                                    $rpaper = true;
+                                };
+                                $author_data = Dbl::qe($db, "SELECT paperId FROM Paper WHERE authorInformation LIKE ".Dbl::utf8ci("'%\t?ls\t%'")." AND paperId = ?;", $vm_owner_mail['email'], $vm['paperId']);
+                                $apaper = false;
+                                foreach ($author_data as $rkey => $rval) {
+                                    $apaper = true;
+                                };
+                                if ($rpaper) {
+                                    $vm_owner = "<i>Anon. Reviewer</i>";
+                                } elseif ($apaper) {
+                                    $vm_owner = "<i>Anon. Author</i>";
+                                } else {
+                                    $vm_owner = "<i>Blind</i>";
+                                };
+                            };
+                        };
+                    }
+                };
+                
+                $vms[$vm['vmid']] = array();
+                $vms[$vm['vmid']]['type'] = $vm['vmtype'];
+                $vms[$vm['vmid']]['fqdn'] = $vm_status['data']['name'];
+                
+                if ($vm_status['data']['status'] == 'running') {
+                    $vm_ifstat = get_vm_ifstat($vm['vmid'], $vmconfig);
+                    $vms[$vm['vmid']]['ipv4'] = $vm_ifstat['ipv4'];
+                    $vms[$vm['vmid']]['ipv6'] = $vm_ifstat['ipv6'];
+                    if ($vm_ifstat['mac'] && $vm_ifstat['ipv4'] && $vm_ifstat['ipv6']) {
+                        $vmlog = Dbl::qe($db, "INSERT INTO UserVMLogs (vmid, createHash, contactId, mac, ipv4, ipv6 ) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE seen_last = NOW()", $vm['vmid'], $vm['createHash'], $cid['contactId'], $vm_ifstat['mac'], $vm_ifstat['ipv4'], $vm_ifstat['ipv6']);
+                    };
+                    if ($vm_status['data']['uptime'] > 86400 ) {
+                        $vms[$vm['vmid']]['uptime'] = gmdate("d\d H\h i\m s\s",$vm_status['data']['uptime']);
+                    } else {
+                        $vms[$vm['vmid']]['uptime'] = gmdate("H\h i\m s\s",$vm_status['data']['uptime']);
+                    };
+                    $vms[$vm['vmid']]['status'] = '<div title="Running" style="color:green" align="center">&#x25B6;</div>';
+                    if ($vm_owner_self) {
+                        $vms[$vm['vmid']]['actions'] = '
+                            <a title="VM Console" class="vmbtn" href="startvm.php?action=console&vmid='.$vm['vmid'].'" target="_blank"><span class="vmbtn" style="color:black" align="center">&#x1F5B5;</span></a>
+                            <a title="Power Off" class="vmbtn" onClick="trigger_vm_action(\'stop\', \''.$vm['vmid'].'\')" target="_blank"><span class="vmbtn" style="color:red" align="center">&#x23FC;</span></a>
+                            <a title="Hard Reset" class="vmbtn" onClick="trigger_vm_action(\'reset\', \''.$vm['vmid'].'\')" target="_blank"><span class="vmbtn" style="color:black" align="center">&#x21ba</span></a>
+                            <a title="Remove VM" class="vmbtn" onClick="trigger_vm_action(\'delete\', \''.$vm['vmid'].'\')" target="_blank"><span class="vmbtn" style="color:red" align="center">&#x1F5D9;</span></a>
+                            <a title="Reset Password" class="vmbtn" href="startvm.php?action=resetpw&vmid='.$vm['vmid'].'" target="_blank"><span class="vmbtn" style="color:black" align="center"><b>?</b></span></a>
+                        ';
+                    } else {
+                        $vms[$vm['vmid']]['actions'] = '
+                            <a title="VM Console" class="vmbtn" href="startvm.php?action=console&vmid='.$vm['vmid'].'" target="_blank"><span class="vmbtn" style="color:black" align="center">&#x1F5B5;</span></a>
+                            <span title="Power off (not allowed)" style="color:gray" align="center">&#x23FC;</span>
+                            <span title="Hard Reset (not allowed)" style="color:gray" align="center">&#x21ba</span>
+                            <span title="Remove VM (not allowed)" style="color:gray" align="center">&#x1F5D9;</span>
+                            <a title="Reset Password" class="vmbtn" href="startvm.php?action=resetpw&vmid='.$vm['vmid'].'" target="_blank"><span class="vmbtn" style="color:black" align="center"><b>?</b></span></a>
+                        ';
+                    };
+                } else {
+                    $vms[$vm['vmid']]['ipv4'] = "-";
+                    $vms[$vm['vmid']]['ipv6'] = "-";
+                    $vms[$vm['vmid']]['uptime'] = "-";
+                    $vms[$vm['vmid']]['status'] = '<div title="Stopped" style="color:gray" align="center">&#x23FC;</div>';
+                    if ($vm_owner_self) {
+                        $vms[$vm['vmid']]['actions'] = '
+                            <a title="Start VM" class="vmbtn" onClick="trigger_vm_action(\'start\', \''.$vm['vmid'].'\')" target="_blank"><span class="vmbtn" style="color:green" align="center">&#x25B6;</span></a>
+                            <a title="Remove VM" class="vmbtn" onClick="trigger_vm_action(\'delete\', \''.$vm['vmid'].'\')" target="_blank"><span class="vmbtn" style="color:red" align="center">&#x1F5D9;</span></a>
+                        ';
+                    } else {
+                        $vms[$vm['vmid']]['actions'] = '
+                            <span title="Start VM (not allowed)" style="color:gray" align="center">&#x25B6;</span>
+                            <span title="Remove VM (not allowed)" style="color:gray" align="center">&#x1F5D9;</span>
+                        ';
+                    };
+                };
+                $vms[$vm['vmid']]['owner'] = $vm_owner;
+                if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
+                    $vms[$vm['vmid']]['prefix'] = Ht::unstash();
+                    $vms[$vm['vmid']]['prefix'] .= $this->conf->make_script_file("scripts/vmsettings.js")."\n";
+                };
+                $vms[$vm['vmid']]['paper'] = 'none';
+                $vm_paper_id = 'none';
+                if ($vm['paperId']) {
+                    $vm_paper_id = $vm['paperId'];
+                };
+                if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
+                    
+                    $vms[$vm['vmid']]['paper'] = '            <select name="paperidvm'.$vm['vmid'].'" id="paperidvm'.$vm['vmid'].'" onChange="'."vmif_toggle_button_visibility('update".$vm['vmid']."', 'initval".$vm_paper_id."', 'paperid', this)".';">';
+                    $vms[$vm['vmid']]['paper'] .= '                <option value="-">-</option> ';
+                    $user_papers = array();
+                    if ($user->is_author()) {
+                        $plist = $user->authored_papers();
+                        foreach ($plist as $idx => $paper) {
+                            $user_papers[$paper->paperId] = "(Author)";
+                        }
+                    }
+                    if ($user->is_reviewer()) {
+                        $plist = $user->papers_for_review();
+                        foreach ($plist as $idx => $paper) {
+                            $user_papers[$paper->paperId] = "(Reviewer)";
+                        }
+                    }
+                    ksort($user_papers);
+                    foreach ($user_papers as $paperId => $paperType) {
+                        if ($paperId == $vm_paper_id) {
+                            $vms[$vm['vmid']]['paper'] .= '                <option value="'.$paperId.'" selected>'.$paperId.' '.$paperType.'</option> ';
+                        } else {
+                            $vms[$vm['vmid']]['paper'] .= '                <option value="'.$paperId.'">'.$paperId.' '.$paperType.'</option> ';
+                        }
+                    }
+                    $vms[$vm['vmid']]['paper'] .= '            </select>';
+                } else {
+                    $vms[$vm['vmid']]['paper'] = $vm_paper_id;
+                };
+
+                $vm_reviewer_access = False;
+                if ($vm['reviewerVisible']) {
+                    $vm_reviewer_access = $vm['reviewerVisible'];
+                };
+                if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
+                    $vms[$vm['vmid']]['reviewer_access'] = '<div class="checki"><label><span class="checkc">'.
+                        Ht::checkbox("reviewer_access".$vm['vmid'], 1, $vm_reviewer_access, ["data-default-checked" => $vm_reviewer_access, "class" => "uich", "onChange" => 'vmif_toggle_button_visibility("update'.$vm['vmid'].'", "'.$vm_reviewer_access.'", "revaccess", this)']).
+                        '</span></label>'.
+                        '</div>'."\n";
+                } else {
+                    if ($vm_reviewer_access) {
+                        $vms[$vm['vmid']]['reviewer_access'] = 'Yes';
+                    } else {
+                        $vms[$vm['vmid']]['reviewer_access'] = 'No';
+                    }
+                };
+
+                $vm_author_access = False;
+                if ($vm['authorVisible']) {
+                    $vm_author_access = $vm['authorVisible'];
+                };
+                if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
+                    $vms[$vm['vmid']]['author_access'] = '<div class="checki"><label><span class="checkc">'.
+                        Ht::checkbox("author_access".$vm['vmid'], 1, $vm_author_access, ["data-default-checked" => $vm_author_access, "class" => "uich", "onChange" => 'vmif_toggle_button_visibility("update'.$vm['vmid'].'", "'.$vm_author_access.'", "autaccess", this)']).
+                        '</span></label>'.
+                        '</div>'."\n";
+                } else {
+                    if ($vm_author_access) {
+                        $vms[$vm['vmid']]['author_access'] = 'Yes';
+                    } else {
+                        $vms[$vm['vmid']]['author_access'] = 'No';
+                    }
+                };
+                if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
+                    $vms[$vm['vmid']]['button'] = Ht::submit("update".$vm['vmid'], "Save", ["class" => "btn-primary hidden", "type" => "submit", "onClick" => "vmif_submit_update('".$vm['vmid']."', this);"]);
+                    $vms[$vm['vmid']]['button'] .= "</form>\n";
+                };
+            };
+        };
+        
+        if (!$vms) {
+            echo '<span class="hint">You currently do not have running VMs. Use the Interface below to start a new VM!</span>';
+        };
+        echo '<div id="foldre" class="homesubgrp">
+                    <table class="pltable pltable-reviewerhome has-hotlist fold2c fold4c fold7c fold8c">';
+
+        echo '  
+                    <tr class="pl_headrow">
+                    <th class="pl plh pl_id" data-pc="id">ID
+                    </th>
+                    <th class="pl plh pl_type" data-pc="type">Type
+                    </th>
+                    <th class="pl plh pl_fqdn" data-pc="fqdn">FQDN
+                    </th>
+                    <th class="pl plh pl_ipv4" data-pc="ipv4">IPv4
+                    </th>
+                    <th class="pl plh pl_ipv6" data-pc="ipv4">IPv6
+                    </th>
+                    <th class="pl plh pl_pl_uptime" data-pc="pl_uptime">Uptime
+                    </th>
+                    <th class="pl plh pl_pl_status" data-pc="pl_status">Status
+                    </th>
+                    <th class="pl plh pl_status pl-status" data-pc="status">Actions
+                    </th>
+                    <th class="pl plh pl_status pl-status" data-pc="status">Owner
+                    </th>
+                    <th class="pl plh pl_status pl-status" data-pc="status">Paper#
+                    </th>
+                    <th class="pl plh pl_status pl-status" data-pc="status">Reviewer<br>Access
+                    </th>
+                    <th class="pl plh pl_status pl-status" data-pc="status">Author<br>Access
+                    </th>
+                    </tr>';
+        echo ' </thead>';
+        echo '  <tbody class="pltable pltable-colored">';
+        $tag = '';
+        foreach ($vms as $vmid => $vminfo ){
+            echo '<tr class="pl '.$tag.' k0 plnx" data-pid="'.$vmid.'" data-tags="'.$vms[$vmid]["fqdn"].'">'."\n";
+            echo '<td class="pl pl_id">';
+            echo $vmid;
+            echo '</td>';
+            if ($tag == '') {
+                $tag = 'tag-gray';
+            } else {
+                $tag = '';
+            };
+            foreach ($vms[$vmid] as $vmpropname => $vmprop ) {
+                if ($vmpropname == 'paper') {
+                    echo '<td class="pl pl_'.$vmpropname.'">';
+                    echo $vmprop;
+                    echo '</td>';
+                } elseif ($vmpropname == 'prefix') {
+                    echo $vmprop;
+                } else {
+                    echo '<td class="pl pl_'.$vmpropname.'">';
+                    echo $vmprop;
+                    echo '</td>';
+                };
+            };
+            echo '</tr>';
+        };
+        echo '  </tbody>';
+        echo '</table></div></div>';
+        echo '    <form id=vmcreate-form action="startvm.php" method="get">';
+//        echo '        <input type="hidden" name="csrf" value="'.$_SESSION['csrf_token'] ?? ''.'">';
+        echo '        <input type="hidden" name="action" value="create">';
+        echo '        <input type="hidden" name="createhash" value="'.random_str(15).'">';
+        echo '        <label for="vm-types">Choose a new VM to start:</label> ';
+        echo '            <select name="vm-types" id="vm-types"> ';
+        $vmconfig = get_vm_connect_config($this->conf);
+        $cluster_load = get_cluster_load($vmconfig, $db);
+        foreach ($this->conf->opt("pve_vms") as $vmtype => $vmdesc){
+            echo '                <option value="'.$vmtype.'">'.$vmdesc['desc'].' ('.$cluster_load['stats'][$vmtype].' free)</option> ';
+        }
+        echo '            </select>';
+        echo '            <button><span style="color:green" align="center">&#x25B6;</span>Start VM</button>';
+        echo '            </form>';
+
     }
 
     private function print_new_submission(Contact $user, SubmissionRound $sr) {
@@ -645,6 +934,7 @@ class Home_Page {
                 $deadlines[] = "Submit final versions of your accepted papers by {$d}.";
             }
         }
+        // add full code for checking users' access to the VM feature here.
         if (!empty($deadlines)) {
             if ($plist && !$plist->is_empty()) {
                 echo '<hr class="g">';
@@ -653,5 +943,9 @@ class Home_Page {
         }
 
         echo "</div>\n";
+	if (!$user->is_reviewer()) {
+		echo "<!-- this is a hidden comment for debugging -->";
+        	$this->print_vm_interface($user);
+	}
     }
 }

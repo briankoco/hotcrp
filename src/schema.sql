@@ -36,7 +36,6 @@ CREATE TABLE `Capability` (
   `inputData` varbinary(16384) DEFAULT NULL,
   `data` varbinary(16384) DEFAULT NULL,
   `outputData` longblob DEFAULT NULL,
-  `lookupKey` varbinary(255) DEFAULT NULL,
   PRIMARY KEY (`salt`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -623,11 +622,45 @@ CREATE TABLE `TopicInterest` (
 
 
 
+--
+-- Table structure for table `UserVMs`
+--
+
+DROP TABLE IF EXISTS `UserVMs`;
+CREATE TABLE `UserVMs` (
+  `vmid` int(11) NOT NULL,
+  `vmtype` varchar(32) NOT NULL,
+  `vmnode` varchar(32) NOT NULL,
+  `vmcluster` varchar(256) NOT NULL,
+  `createHash` varchar(256) NOT NULL,
+  `contactId` int(11) NOT NULL,
+  `paperId` int(11),
+  `reviewerVisible` BOOLEAN NOT NULL DEFAULT False,
+  `authorVisible` BOOLEAN NOT NULL DEFAULT False,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `delete_time` DATETIME,
+  `last_changed` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `active` BOOLEAN NOT NULL DEFAULT True,
+  PRIMARY KEY (`vmid`, `contactId`, `createHash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `UserVMLogs`;
+CREATE TABLE `UserVMLogs` (
+  `vmid` int(11) NOT NULL,
+  `createHash` varchar(256) NOT NULL,
+  `contactId` int(11) NOT NULL,
+  `mac` varchar(64) NOT NULL,
+  `ipv4` varchar(64),
+  `ipv6` varchar(64),
+  `seen_first` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `seen_last` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`vmid`, `contactId`, `createHash`, `mac`, `ipv4`, `ipv6`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Initial settings
 -- (each setting must be on its own line for createdb.sh)
 insert into Settings (name, value, data) values
-  ('allowPaperOption', 295, null),   -- schema version
+  ('allowPaperOption', 293, null),   -- schema version
   ('setupPhase', 1, null),           -- initial user is chair
   ('no_papersub', 1, null),          -- no submissions yet
   ('sub_pcconf', 1, null),           -- collect PC conflicts, not collaborators
