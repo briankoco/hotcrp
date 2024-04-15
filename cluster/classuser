@@ -1,0 +1,138 @@
+#!/usr/local/bin/bash
+
+# specify command 'org', 'user', 'join', 'remove'
+# user username email inst position password country state
+# org username password orgname
+# join username orgname role
+# remove username
+export HOME="/var/www/html"
+PASSWORD=`env $PASS`
+if [ $# -lt 1 ] ; then
+    echo "Usage: $0 user | org | join | repwd"
+    echo "user <username> <email> <full name> <inst> <position> <country> <state> <password> - creates new user in Merge"
+    echo "org <username> <password> <orgname> - create new organization as user <username> in Merge"
+    echo "join <username> <password> <orgname> <Maintainer|Member> - join the given organization as <username> with the given role"
+    echo "remove <username> - remove user from Merge portal"
+    echo "repwd <username> <email> <inst> <position> <password> <country> <state> - change password for user in Merge"
+    exit 0
+fi
+mrg config set server grpc.mod.deterlab.net 
+cmd=$1
+if [ $cmd == "user" ] ; then
+    if [ $# -ne 9 ] ; then
+	echo "Usage: $0 user <username> <email> <full name> <inst> <position> <country> <state> <password>  - creates new user in Merge"
+	exit 0
+    else
+	# Check if user exists
+	mrg login mirkovic -p $PASSWORD
+	echo "Logged in $?"
+	cmdu="mrg show user $2 2>&1 > /dev/null"
+	eval $cmdu 
+	result=$?
+	if [ $result -eq 0 ] ; then
+	    echo $result
+	    exit 0
+	fi
+	cmdu="mrg register $2 $3 '$4' '$5' '$6' '$7' --usstate '$8'  -p $9"
+	eval $cmdu 
+	result=$?
+	sleep 15
+	mrg login mirkovic -p $PASSWORD
+	result=$result || $?
+	mrg init $2
+	result=$result || $?
+	mrg activate user $2
+	result=$result || $?
+	mrg login $2 -p $9 2>/dev/null
+	# Even if the user existed before we will still proceed
+	result=$?
+	try=0
+	while [[ $result -ne 0 && $try -le 20 ]] ; do
+	    	mrg login $2 -p $9 2>/dev/null
+		result=$?
+		try=$(($try + 1))
+		sleep 1
+	done
+	mrg new xdc xdc.$2
+	result=$result || $?
+	echo $result
+	exit 0
+    fi
+elif [ $cmd == "org" ] ; then
+    if [ $# -ne 4 ] ; then
+	echo "Usage: $0 org <username> <password> <orgname> - create new organization as user <username> in Merge"
+	exit 0
+    else
+	mrg login $2 -p $3
+	result=$?
+	try=0
+	while [[ $result -ne 0 && $try -le 20 ]] ; do
+	    	mrg login $2 -p $3
+		result=$?
+		try=$(($try + 1))
+		sleep 1
+	done
+	mrg new organization $4 -m protected -d "class" --category "class"
+	result=$result || $?
+	mrg login mirkovic -p $PASSWORD
+	result=$result || $?
+	mrg activate organization $4
+	result=$result || $?
+	echo $result
+	exit 0
+    fi
+elif [ $cmd == "join" ] ; then
+    if [ $# -ne 5 ] ; then
+	echo "join <username> <password> <orgname> <Maintainer|Member> - join the given organization as <username> with the given role"
+	exit 0
+    elif [[ $5 != "Maintainer" &&  $5 != "Member" ]] ; then
+	echo "You can only request Maintainer or Member role"
+	exit 0
+    else
+	mrg login $2 -p $3
+	result=$?
+	mrg membership request organization user $4 $2
+	result=$result || $?	
+	mrg login mirkovic -p $PASSWORD
+	result=$result || $?	
+	mrg membership confirm organization user $4 $2
+	result=$result || $?	
+	mrg update member organization user $4 $2 --role $5
+	result=$result || $?	
+	echo $result
+	exit 0
+    fi
+elif [ $cmd == "remove" ] ; then
+    if [ $# -ne 2 ] ; then
+	echo "You must specify username to remove";
+	exit 1
+    else
+	mrg login mirkovic -p $PASSWORD
+	result=$?	
+	mrg unregister $2
+	result=$result || $?
+	mrg delete user $2
+	result=$result || $?	
+	echo $result
+	exit 0
+    fi
+elif [ $cmd == "repwd" ] ; then
+    if [ $# -ne 9 ] ; then
+	echo "Usage: $0 repwd <username> <email> <full name> <inst> <position> <country> <state> <password> - change password for user in Merge"
+	exit 1
+    else
+	mrg login mirkovic -p $PASSWORD
+        result=$?
+        mrg unregister $2       
+	result=$result || $?
+	cmdu="mrg register $2 $3 '$4' '$5' '$6' '$7' --usstate '$8'  -p $9"
+	echo $cmdu
+	eval $cmdu 
+	result=$result || $?	
+	echo $result
+	exit 0
+    fi
+else	
+    echo "Command needs to be either 'user', 'org', 'join', 'remove' or 'repwd'"
+    exit 0
+fi
