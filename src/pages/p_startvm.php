@@ -17,6 +17,7 @@ class StartVm_Page {
         $this->user = $user;
         $this->qreq = $qreq;
         $this->ms = new MessageSet;
+	$this->pid = $_GET['pid'];
     }
 
     // this is useful for post stuff
@@ -77,6 +78,7 @@ class StartVm_Page {
     }
 
     function create_vm(Contact $user, Qrequest $qreq) {
+
         if (!($db = $user->conf->contactdb())) {
             $db = $user->conf->dblink;
         }
@@ -90,6 +92,9 @@ class StartVm_Page {
         } else {
             include_once('src/pve_api/pve_functions.php');
             $qreq->print_header("Creating a New VM", "createvm");
+	    echo "Creating VM user " . $user->contactId . " paper " . $this->pid;
+
+
             $vmconfig = get_vm_connect_config($this->conf);
             $cluster_load = get_cluster_load($vmconfig, $db);
             if ($cluster_load['stats'][$_GET['vm-types']] < 1) {
@@ -186,6 +191,7 @@ class StartVm_Page {
             $qreq->print_footer();
         } else {
             include_once('src/pve_api/pve_functions.php');
+	    echo "Starting";
             $vmconfig = get_vm_connect_config($this->conf);
             $vmconfig = update_vm_config($vmid, $vmconfig, $db);
             $vm_status = get_vm_status($vmid, $vmconfig);

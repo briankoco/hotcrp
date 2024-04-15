@@ -237,7 +237,10 @@ $Opt["smartScoreCompare"] = true;
 // CLUSTER INFO FOR VMs
 //
 //
-// clusterName	     Name of the cluster used
+// clusterVMs	     Path to file containing |-separated names of VM options
+// 		     and descriptions, one per line
+//
+// clusterOrg	     Name of cluster organization, e.g., acsac2023
 //
 // clusterUser       Username for HotCRP admin on the cluster
 //

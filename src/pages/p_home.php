@@ -786,21 +786,6 @@ class Home_Page {
         };
         echo '  </tbody>';
         echo '</table></div></div>';
-        echo '    <form id=vmcreate-form action="startvm.php" method="get">';
-//        echo '        <input type="hidden" name="csrf" value="'.$_SESSION['csrf_token'] ?? ''.'">';
-        echo '        <input type="hidden" name="action" value="create">';
-        echo '        <input type="hidden" name="createhash" value="'.random_str(15).'">';
-        echo '        <label for="vm-types">Choose a new VM to start:</label> ';
-        echo '            <select name="vm-types" id="vm-types"> ';
-        $vmconfig = get_vm_connect_config($this->conf);
-        $cluster_load = get_cluster_load($vmconfig, $db);
-        foreach ($this->conf->opt("pve_vms") as $vmtype => $vmdesc){
-            echo '                <option value="'.$vmtype.'">'.$vmdesc['desc'].' ('.$cluster_load['stats'][$vmtype].' free)</option> ';
-        }
-        echo '            </select>';
-        echo '            <button><span style="color:green" align="center">&#x25B6;</span>Start VM</button>';
-        echo '            </form>';
-
     }
 
     private function print_new_submission(Contact $user, SubmissionRound $sr) {

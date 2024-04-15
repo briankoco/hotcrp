@@ -631,7 +631,6 @@ CREATE TABLE `VMs` (
   `vmid` int(11) NOT NULL,
   `vmtype` varchar(32) NOT NULL,
   `vmdesc` varchar(256) NOT NULL,
-  `vmcluster` varchar(32) NOT NULL,
   `contactId` int(11) NOT NULL,
   `paperId` int(11),
   `reviewerVisible` BOOLEAN NOT NULL DEFAULT False,
@@ -645,13 +644,12 @@ CREATE TABLE `VMs` (
 
 DROP TABLE IF EXISTS `ClusterUsers`;
 CREATE TABLE `ClusterUsers` (
-  `vmcluster` varchar(32) NOT NULL,
   `contactId` int(11) NOT NULL,
-  `uid` varchar(64) NOT NULL,
-  `pass` varchar(64) NOT NULL,
+  `username` varchar(64) NOT NULL,
+  `password` varchar(64) NOT NULL,
   `used_first` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `used_last` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`vmcluster`, `contactId`)
+  PRIMARY KEY ( `contactId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Initial settings

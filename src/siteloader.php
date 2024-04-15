@@ -65,7 +65,7 @@ class SiteLoader {
         "_settingparser.php" => ["s_", "src/settings"],
         "_sitype.php" => ["si_", "src/settings"],
         "_tester.php" => ["t_", "test"],
-        "_userinfo.php" => ["u_", "src/userinfo"]
+        "_userinfo.php" => ["u_", "src/userinfo"],
     ];
 
     /** @var string */

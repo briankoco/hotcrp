@@ -408,6 +408,43 @@ class Profile_Page {
                 $this->ustatus->splice_msg($pos++, "<0>Changes saved{$diffs}", MessageSet::SUCCESS);
             }
         }
+	// Jelena: run classuser here if needed
+	$query="select username from ClusterUsers where contactId=" . $this->user->contactId;
+	$this->ustatus->splice_msg($pos++, "<0>$query", MessageSet::SUCCESS);
+	$result = $this->user->conf->qe($query);
+	if (mysqli_num_rows($result) == 0)
+	{
+	    // Jelena: Set up cluster info for admin
+	    if ($this->user->contactId == 1)
+	    {
+		$query="insert into ClusterUsers (contactId, username, password) values (" . $this->user->contactId  . ",'" . $this->user->conf->opt("clusterUser") . "','" . $this->user->conf->opt("clusterPass") . "')";
+	    	$this->user->conf->qe($query);
+		$this->ustatus->splice_msg($pos++, "<0>will create new user", MessageSet::SUCCESS);
+	    }
+	    else
+	    {	    
+	    	$this->ustatus->splice_msg($pos++, "<0>will create new class user", MessageSet::SUCCESS);
+		$username=$this->user->conf->opt("clusterOrg") . "u" . $this->user->contactId;
+		$pass=substr(md5(rand()), 0, 7); 
+		$cmd="bash /var/www/html/cluster/classuser user " . $username . " " . $this->user->email . " \"" . $this->user->firstName . " " . $this->user->lastName . "\" \"" . $this->user->affiliation . "\"   Researcher \"" . $this->user->country() . "\" \"\" " . $pass . " 2>&1";
+		exec($cmd, $output, $retval);
+		// Insert into db
+		if ($retval == 0)
+		{
+		    $query="insert into ClusterUsers (contactId, username, password) values (" . $this->user->contactId  . ",'" . $username . "','" . $pass . "')";
+		    $this->user->conf->qe($query);
+                    $this->ustatus->splice_msg($pos++, "<0>inserted into DB", MessageSet::SUCCESS);
+
+		}
+		$outs=implode($output);
+		$this->ustatus->splice_msg($pos++, "<0>$cmd retval=$retval $outs", MessageSet::SUCCESS);
+	    }
+	}
+	else
+	{
+		$this->ustatus->splice_msg($pos++, "<0>user exists", MessageSet::SUCCESS);	
+	}
+
         $this->conf->feedback_msg($this->decorated_message_list($this->ustatus, $this->ustatus));
 
         // exit on error

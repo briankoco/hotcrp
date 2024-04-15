@@ -798,6 +798,7 @@ class UserStatus extends MessageSet {
         if ($us->cs()->root() !== "main") {
             return;
         }
+
         $user = $us->user;
         $cdbu = $us->cdb_user();
         if ($user->firstName === ""

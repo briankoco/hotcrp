@@ -195,6 +195,7 @@ function initialize_conf($config_file = null, $confid = null) {
             Multiconference::fail_bad_database();
         }
     }
+    // Jelena: initalize cluster accounts for chair
 
     return Conf::$main;
 }

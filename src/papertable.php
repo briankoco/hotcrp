@@ -194,6 +194,7 @@ class PaperTable {
 
             $highlight_text = null;
             $title_matches = 0;
+	   
             if ($paperTable->matchPreg
                 && ($highlight = $paperTable->matchPreg["ti"] ?? null)) {
                 $highlight_text = Text::highlight($prow->title, $highlight, $title_matches);
@@ -2865,11 +2866,36 @@ class PaperTable {
         } else if ($prow->has_conflict($this->user)) {
             $aut = $this->conf->_5("<5>You have a <span class=\"conflict\">conflict</span> with this {submission}.");
         }
-        return $pret
+        return $pret 
             . ($aut ? "<p class=\"sd\">{$aut}</p>" : "")
-            . ($any_comments ? CommentInfo::script($prow) : "")
-            . (empty($t) ? "" : '<p class="sd">' . join("", $t) . '</p>');
+            . ($any_comments ? CommentInfo::script($prow) : "") 
+            . (empty($t) ? "" : '<p class="sd">' . join("", $t) . '</p>'); 
     }
+
+    private function print_startvm() {
+    	// Start VM option
+	include_once('src/pve_api/pve_functions.php');
+
+	echo '    <form id=vmcreate-form action="../startvm.php" method="get" target="new">';
+        echo '        <input type="hidden" name="action" value="create">';
+        echo '        <input type="hidden" name="createhash" value="'.random_str(15).'">';
+	echo '	      <input type="hidden" name="pid" value="' . $this->prow->paperId . '">';
+        echo '        <label for="vm-types">Choose a new VM to start:</label> ';
+        echo '            <select name="vm-types" id="vm-types"> ';
+
+	$myfile = fopen($this->conf->opt("clusterVMs"), "r");
+	fgets($myfile);
+	while(!feof($myfile)) {
+  	   $line = fgets($myfile);
+	   $items = preg_split('/\|/', $line);
+           echo '                <option value="'.$items[0].'">'.$items[1].'</option>\n';
+        }
+	fclose($myfile);
+        echo '            </select>';
+        echo '            <button><span style="color:green" align="center">&#x25B6;</span>Start VM</button>';
+        echo '            </form>';
+    }
+
 
     private function _review_overview_card($rtable, $ifempty, $msgs) {
         $t = "";
@@ -2886,6 +2912,9 @@ class PaperTable {
         if ($t) {
             echo '<div class="pcard notecard">', $t, '</div>';
         }
+	echo '<div class="pcard notecard">';
+	$this->print_startvm();
+	echo '</div>';
         return $empty;
     }
 

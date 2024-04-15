@@ -1,1 +1,4 @@
-# Type, description
+# Type|description
+small|1 CPU, 8G RAM
+medium|2 CPUs, 16G RAM
+large|4 CPUs, 32G RAM
