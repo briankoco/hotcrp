@@ -27,7 +27,10 @@ class StartVm_Page {
 
     echo '<script>
     window.addEventListener(\'load\', (event) => {
-      fun("'  . $_GET['createhash'] . '");});</script>';
+      fun("'  . $_GET['createhash'] . '");
+      setInterval(fun("'  . $_GET['createhash'] . '"), 3000);
+    });
+    </script>';
 
     echo "Called with " . $_GET['createhash'];
     $messages=[];
