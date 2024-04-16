@@ -3677,6 +3677,8 @@ function tracker_refresh() {
     }
 }
 
+
+
 handle_ui.on("js-tracker", function (evt) {
     let $pu, trno = 1, elapsed_timer;
     function make_tracker(tr) {
@@ -10358,6 +10360,7 @@ Assign_DraggableTable.prototype.commit = function () {
             handle_ui.stopPropagation(evt);
         }
     }
+
 
     function prowdrag_mouseup() {
         document.removeEventListener("mousemove", prowdrag_mousemove, true);

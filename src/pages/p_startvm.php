@@ -20,6 +20,53 @@ class StartVm_Page {
 	$this->pid = $_GET['pid'];
     }
 
+    function get_log($file){
+
+    echo '<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>';
+    echo '<script type="text/javascript" src="scripts/test.js"></script>';
+
+    echo '<script>
+    window.addEventListener(\'load\', (event) => {
+      fun("'  . $_GET['createhash'] . '");});</script>';
+
+    echo "Called with " . $_GET['createhash'];
+    $messages=[];
+    $logfile = fopen($file, "r") or die(json_encode(array_push($messages, "Error")));
+    $count = 0;
+    while(!feof($logfile) || $count < $_SESSION['pos']){
+    	$tmp = fgets($logfile);
+    	$count++;
+    }
+
+    echo "Count " . $count . " file " . $file . " pos " . $_SESSION['pos'];
+   
+    // if the session var that holds the offset position is not set 
+    // or has value more than the lines of text file
+    if (!isset($_SESSION['pos']) || $_SESSION['pos'] >= $count) {
+	        $_SESSION['pos'] = 0; // back to the beginning
+    	    } 
+
+
+    // the array that holds the logs data
+    $messages = array(); 
+
+    // move the pointer to the current position
+    fseek($logfile, $_SESSION['pos']);
+    
+    // read the file
+     while(!feof($logfile)){
+       $msg = fgets($logfile);
+       	$msg1 = explode("\n", $msg);
+       	array_push($messages, $msg1);
+       	$_SESSION['pos']++;
+     }
+
+    // return the array
+    echo json_encode($messages);
+
+    fclose($logfile);
+    }
+
     // this is useful for post stuff
     function handle_post_request() {
         if ($this->qreq->action == 'updatevm' ) {
@@ -92,8 +139,15 @@ class StartVm_Page {
         } else {
             include_once('src/pve_api/pve_functions.php');
             $qreq->print_header("Creating a New VM", "createvm");
-	    echo "Creating VM user " . $user->contactId . " paper " . $this->pid;
+	    
+	    echo "Creating VM user " . $user->contactId . " paper " . $this->pid; 
+	    echo '<p><textarea id="startvm_log" name="startvm_log" rows="4" cols="50"></textarea><p>';
+	    $_SESSION["filename"] = $_GET['createhash'];
 
+	    // count the lines exist in the file
+	    $file = 'data/'. $_SESSION["filename"];
+
+	    $this->get_log($file);
 
             $vmconfig = get_vm_connect_config($this->conf);
             $cluster_load = get_cluster_load($vmconfig, $db);
