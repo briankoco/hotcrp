@@ -1,0 +1,24 @@
+#!/usr/bin/bash
+C=''
+j=0
+for i in "$@"; do
+    case "$i" in
+	user)
+	    ;;
+        *\'*)
+            i=`printf "%s" "$i" | sed "s/'/'\"'\"'/g"`
+            ;;	
+        *) : ;;
+    esac
+
+    if [[ $i == "user" ]]; then
+	C="$C user"
+    elif [[ $i == -* ]]; then
+	C="$C $i"
+    else
+	C="$C \"$i\""
+    fi
+done
+args=`printf "%s\n" "$C"`
+echo "ARGS $args" > /tmp/args
+aecuser $args 2>&1 </dev/null &
