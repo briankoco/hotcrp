@@ -176,6 +176,14 @@ You can set up everything else through the web site itself.
     `conf/options.php`: a Settings record with name `opt.XXX` takes
     precedence over option `$Opt["XXX"]`.
 
+
+Extensions for using SPHERE
+---------------------------
+
+Conference chair should create SPHERE account and a SPHERE organization and populate
+conf/options.php. Binary mrg should be installed. Also, path to cluster folder should
+be added to /etc/apache2/envvars and apache should be restarted.
+
 Database access
 ---------------
 

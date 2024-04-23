@@ -1,5 +1,6 @@
 <?php
 # Load Curl API
+
 include_once("pve_api.php");
 
 function get_vm_connect_config($conf) {
@@ -63,6 +64,32 @@ function get_next_vmid($config) {
 	$params = [];
 	$next_vmid = api_pve_con( $config["pve_server"], $config["pve_port"], "api2/json/cluster/nextid", "GET", $params, $config["pve_ticket"], $config["pve_CSRFPreventionToken"] );
 	return $next_vmid['data'];
+};
+
+function create_cluster_user($org, $id, $db, $file)
+{
+    $username=$org . $id;
+    $pass=substr(md5(rand()), 0, 7);
+    $result = Dbl::qe($db, "select email, firstName, lastName, affiliation, country from ContactInfo WHERE contactID = ?;", $id);
+
+    while (($row = $result->fetch_row())) {
+
+    $retval = 1;
+    $output = "";
+    $cmd="stdbuf -oL aecuser user " . $username . " " . $row[0] . " \"" . $row[1] . " " . $row[2] . "\" \"" . $row[3] . "\" \"" . $row[4] . "\"  " . $pass . "  " . $org . " 2>&1 >> $file &\n"; //
+    $myfile = fopen($file, "a");
+    fwrite($myfile, $cmd);
+    fclose($myfile);
+   // exec($cmd, $output, $retval);
+    error_log("Cmd $cmd retval $retval");
+     
+    // Insert into db
+    if ($retval == 0)
+     {  
+       $query="insert into ClusterUsers (contactId, username, password) values (" . $id  . ",'" . $username . "','" . $pass . "')";
+       Dbl::qe($db,$query);
+     }
+    }
 };
 
 /*

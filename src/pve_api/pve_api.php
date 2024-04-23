@@ -1,4 +1,6 @@
 <?php
+$currently_busy   = 0;
+
 # Convert Object to Array
 function convert_object_to_array($data) {
     if (is_object($data)) {
@@ -12,9 +14,49 @@ function convert_object_to_array($data) {
     }
 };
 
+    function startbusy($msg) {
+    
+      global $currently_busy;
+
+      # Allow for a repeated call; Do nothing.
+      if ($currently_busy)
+        return;
+
+      echo "<div id='outer_loaddiv'>\n";
+      echo "<center><div id='inner_loaddiv'>\n";
+      echo "<b>$msg</b> ...<br>\n";
+      echo "This will take a few moments; please be <em>patient</em>.<br>\n";
+      echo "</div>\n";
+      echo "<iframe id='busy' src='https://giphy.com/embed/KG4PMQ0jyimywxNt8i' width='480' height='480' frameBorder='0'></iframe>" .
+           "<span id='loading'> Working ...</span>";
+      echo "<br><br>\n";
+      echo "</center>\n";
+      echo "</div>\n";
+      flush();
+      $currently_busy = 1;
+   } 
+
+
+   function stopbusy() {
+   
+      global $currently_busy;
+
+      if (!$currently_busy)
+        return;
+
+      echo "<script type='text/javascript' language='javascript'>\n";
+      echo "ClearBusyIndicators('<center><b>Done!</b></center>');\n";
+      echo "</script>\n";
+      flush();
+      $currently_busy = 0;
+      sleep(1);
+    }
+
+
 
 ?>
 <?php
+
 # PVE API Login
 function api_pve_login($pve_server,$pve_port,$pve_user,$pve_pass)
 {	

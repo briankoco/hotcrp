@@ -1,0 +1,7 @@
+# Check if each user has account and if not create it
+
+# Check if project exists and if not create it
+
+# Check if each user is part of project and if not add them
+
+# Start the VM

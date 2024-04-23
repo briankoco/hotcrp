@@ -227,7 +227,7 @@ class Paper_Page {
 	      $cmd="bash /var/www/html/cluster/createproject " . $username . " " . $pass . " paper " . $this->ps->paperId . " 2>&1";
        	      //exec($cmd, $output, $retval);
 	      //$outs=implode($output);	
-	      $this->ps->prepend_msg($conf->_("<0> output " . $cmd));
+	      $this->ps->prepend_msg($conf->_("<0> output " . $cmd), MessageSet::INFORM);
 	}
 
         $new_prow = $conf->paper_by_id($this->ps->paperId, $this->user, ["topics" => true, "options" => true]);
@@ -479,7 +479,6 @@ class Paper_Page {
             }
         }
 
-	$this->print_startvm();	
         echo "</article>\n";
         $this->qreq->print_footer();
     }

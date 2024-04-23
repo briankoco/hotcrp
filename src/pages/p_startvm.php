@@ -140,7 +140,43 @@ class StartVm_Page {
         } else {
             include_once('src/pve_api/pve_functions.php');
             $qreq->print_header("Creating a New VM", "createvm");
+
+	    $people=[];
+	    $result = Dbl::qe($db, "select authorInformation from Paper WHERE paperID = ?;", $this->pid);
 	    
+	    while (($row = $result->fetch_row())) {
+	    $strings = preg_split('/\s+/',$row[0]);
+	    foreach ($strings as $s)
+	    {
+		if (str_contains($s, "@"))
+		{
+			 $resulti = Dbl::qe($db, "select contactId from ContactInfo WHERE email = ?;", $s);
+			 while (($rowi = $resulti->fetch_row())) {
+			   $id = $rowi[0];
+		    	   array_push($people, $id);
+		          }
+		}
+	     }
+	   }
+	    $result = Dbl::qe($db, "select contactId from PaperReview WHERE paperID = ?;", $this->pid);
+
+            while (($row = $result->fetch_row())) {
+
+	    	  $id = $row[0];
+		  array_push($people, $id);
+	    }
+	    foreach ($people as $p)
+	    {
+            	    $result = Dbl::qe($db, "select * from ClusterUsers WHERE contactId= ?;", $p);
+		    if (!$result->fetch_assoc()) {
+		         echo "Should create account for " . $p . "<br>";
+			 create_cluster_user($user->conf->opt("clusterOrg"), $p, $db, "data/" . $_GET['createhash']);
+		       }
+		       else
+		       {
+		          echo "Account already exists for " . $p . "<br>";
+		       }
+	    }	    
 	    echo "Creating VM user " . $user->contactId . " paper " . $this->pid; 
 	    echo '<p><textarea id="startvm_log" name="startvm_log" rows="4" cols="50"></textarea><p>';
 	    $_SESSION["filename"] = $_GET['createhash'];
@@ -149,6 +185,7 @@ class StartVm_Page {
 	    $file = 'data/'. $_SESSION["filename"];
 
 	    $this->get_log($file);
+	    exec("bash data/" . $_GET['createhash']);
 
             $vmconfig = get_vm_connect_config($this->conf);
             $cluster_load = get_cluster_load($vmconfig, $db);
