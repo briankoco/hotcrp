@@ -165,27 +165,21 @@ class StartVm_Page {
 	    	  $id = $row[0];
 		  array_push($people, $id);
 	    }
+	    $cmd = "bash firestartvm " . $this->pid . " small ";
 	    foreach ($people as $p)
 	    {
-            	    $result = Dbl::qe($db, "select * from ClusterUsers WHERE contactId= ?;", $p);
-		    if (!$result->fetch_assoc()) {
-		         echo "Should create account for " . $p . "<br>";
-			 create_cluster_user($user->conf->opt("clusterOrg"), $p, $db, "data/" . $_GET['createhash']);
-		       }
-		       else
-		       {
-		          echo "Account already exists for " . $p . "<br>";
-		       }
-	    }	    
-	    echo "Creating VM user " . $user->contactId . " paper " . $this->pid; 
+		$cmd = $cmd . " " . $p;
+       	    }
 	    echo '<p><textarea id="startvm_log" name="startvm_log" rows="4" cols="50"></textarea><p>';
 	    $_SESSION["filename"] = $_GET['createhash'];
 
 	    // count the lines exist in the file
-	    $file = 'data/'. $_SESSION["filename"];
-
+	    $file = '/tmp/'. $_SESSION["filename"];
+	    exec("touch " . $file);
+	    $cmd = $cmd . " 2>&1 >> " . $file;
+	    echo "Cmd $cmd";
 	    $this->get_log($file);
-	    exec("bash data/" . $_GET['createhash']);
+	    exec($cmd);
 
             $vmconfig = get_vm_connect_config($this->conf);
             $cluster_load = get_cluster_load($vmconfig, $db);

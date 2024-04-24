@@ -1,0 +1,234 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use DBI;
+
+$|=1;
+
+
+sub randompass()
+{
+	my @alphanumeric = ('a'..'z', 'A'..'Z', 0..9,'!','_','-');
+	my @numeric = (0..9);
+	my $randpassword = '';
+
+	while ( length($randpassword) < 8 ) {
+              $randpassword = $randpassword . join '', map $alphanumeric[rand @alphanumeric], 0..(rand @numeric);
+	}
+	print "Rand pass $randpassword\n";
+	$randpassword .= '#';
+	return $randpassword;
+}
+
+# Take paper ID, type of VM to create
+# and a list of IDs that need access
+# like startvm 2 small 4 2 1
+
+my $usage="$0 paper-ID vm-type contact-IDs\n";
+my %opt = ();
+
+
+if ($#ARGV < 2)
+{
+    print $usage;
+    exit 1;
+}
+
+# Read info from conf/options.php
+# to get orgName, dbUser, etc.
+my $fh = new IO::File("conf/options.php");
+while (<$fh>)
+{
+    if ($_ =~ /\$Opt/ && $_ =~ /\=/)
+    {
+	my @arr = split /[\[\]\"\=\s+\;]/, $_;	
+	if ($#arr > 3)
+	{
+	    my $intake = 0;
+	    for my $a (@arr)
+	    {
+		if ($a !~ /[\[\]\"\=\s+]/ && $a =~ /[a-zA-Z0-9]/)
+		{
+		    if ($a =~ /^\$Opt/)
+		    {
+			$intake = 1;
+			next;
+		    }
+		    if ($intake =~ /^[0-9]$/ && $intake == 1)
+		    {
+			$opt{$a} = 0;
+			$intake = $a;
+		    }
+		    else
+		    {
+			$opt{$intake} = $a;
+			last;
+		    }
+		}
+	    }
+	}
+    }
+}
+
+my $dsn = "DBI:mysql:database=$opt{'dbName'}";
+my $dbh = DBI->connect($dsn, $opt{'dbUser'}, $opt{'dbPassword'});
+my $sth;
+my %tocreate=();
+my $paperID = $ARGV[0];
+my $vmtype = $ARGV[1];
+# Create a project for paper if it does not exist
+my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\" && ";
+my $proj = $opt{'clusterOrg'} . "p" . $paperID;
+my $cmd = $logincmd . "mrg show project $proj";
+my $result = system($cmd);
+if ($result != 0)
+{
+    $cmd = $logincmd . "mrg new project $proj \"" . $opt{'clusterOrg'} . " AE for paper " . $paperID . "\" --category Research -o " . $opt{'clusterOrg'};
+    $result = system($cmd);
+}
+# Figure out which cluster accounts we have created before
+my $org = $opt{'clusterOrg'};
+for (my $i = 2; $i <= $#ARGV; $i++)
+{
+    my $id = $ARGV[$i];
+    my $username = $org . "u" .  $ARGV[$i];
+    $sth = $dbh->prepare(
+	'SELECT * FROM ClusterUsers WHERE contactID = ?')
+	or die "prepare statement failed: $dbh->errstr()";
+    $sth->execute($ARGV[$i]) or die "execution failed: $dbh->errstr()";
+    # If no account exists according to HotCRP try to create it or re-create it and save
+    if ($sth->rows == 0)
+    {
+	print "Create account for " . $ARGV[$i] . "\n";
+	$sth = $dbh->prepare(
+	    'SELECT * FROM ContactInfo WHERE contactID = ?')
+	    or die "prepare statement failed: $dbh->errstr()";
+	$sth->execute($ARGV[$i]) or die "execution failed: $dbh->errstr()";
+	while (my $ref = $sth->fetchrow_hashref()) {
+	    my $usstate = "";
+	    my $firstName = $ref->{'firstName'};
+	    my $lastName = $ref->{'lastName'};
+	    my $email = $ref->{'email'};
+	    my $affiliation = $ref->{'affiliation'};
+	    my $country= $ref->{'country'};
+	    if ($affiliation eq "")
+	    {
+		$affiliation = "HotCRP";
+	    }
+	    if ($country eq "" || $country eq "United States of America")
+	    {
+		$country = "United States";
+	    }
+	    if ($country eq "United States")
+	    {
+		$usstate = "--usstate CA";
+	    }
+	    my $password = randompass();
+	    # Check if the user already exists, and if it does unregister them since we need to generate a new password
+	    my $cmd = $logincmd . "mrg show user $username";
+	    my $result = system($cmd);
+	    if ($result == 0)
+	    {
+		# Assume that this will work
+		$cmd = $logincmd . "mrg delete user $username && mrg unregister $username";
+		system($cmd);
+		print "Existing user $username has been deleted, and new user will be created";
+	    }
+	    $cmd = "mrg register $username $email \"$firstName $lastName\" \"$affiliation\" Researcher \"$country\" $usstate -p \"$password\" -o $org";
+	    # Execute the command in new process
+	    $result = system($cmd);
+	    if ($result == 0)
+	    {
+		$cmd =  $logincmd . "mrg membership confirm organization user " . $opt{'clusterOrg'} . " " . $username;
+		$result = system($cmd);
+		if ($result == 0)
+		{
+		    print "Successfully registered user $username\n";
+		    my $sth1 = $dbh->prepare(
+			'INSERT INTO ClusterUsers(contactID, username, password) values (?, ?, ?)')
+			or die "prepare statement failed: $dbh->errstr()";
+		    $sth1->bind_param(1, $id);
+		    $sth1->bind_param(2, $username);
+		    $sth1->bind_param(3,$password);
+		    $sth1->execute or die "execution failed: $dbh->errstr()";
+		    $sth1->finish;
+		    # Join user to the project
+		    $cmd = $logincmd . "mrg update member project $proj $username";
+		    $result = system($cmd);
+		    if ($result != 0)
+		    {
+			print "Membership update for project $proj and user $username failed";
+		    }
+		}
+		else
+		{
+		    print "Registration of $username for email $email has worked but we could not activate the user. Please contact testbed ops.\n";
+		}
+	    }
+	    else
+	    {
+		print "Registration of $username for email $email has failed. Please contact testbed ops.\n";
+	    }
+	}
+	$sth->finish;
+    }
+    else
+    {
+	# Join user to the project
+	$cmd = $logincmd . "mrg update member project $proj $username";
+	$result = system($cmd);
+	if ($result != 0)
+	{
+	    print "Membership update for project $proj and user $username failed";
+	}
+    }
+    $sth->finish;
+}
+# Now create an XDC in that project if needed
+$cmd=$logincmd . "mrg list xdcs | grep xdc.$proj";
+$result=system($cmd);
+if ($result != 0)    
+{
+    # XDC needs to be created
+    print "Creating XDC xdc.$proj\n";
+    $cmd=$logincmd . "mrg new xdc xdc.$proj";
+    $result=system($cmd);
+    
+    if ($result == 0)
+    {	    
+	# Created XDC, now need to wait for it to be live
+	my $retries = 10;
+	for (my $tries = 0; $tries < $retries; $tries++)
+	{
+	    print "Checking if the XDC is up\n";
+	    $cmd = $logincmd . "ssh -F config xdc-$proj \"ls ~/ > /dev/null\"";
+	    $result=system($cmd);
+	    if ($result != 0)
+	    {
+		sleep(1);		
+	    }
+	    else
+	    {
+		print "XDC is now operational\n";
+		last;
+	    }
+	}
+    }
+}
+if ($result == 0)
+{
+    print "XDC exists and is running, we will now create the VM\n";
+    # Now create the VM in that project
+    my $xdccmd="/share/staging/startexp -p $proj -n $proj$vmtype -m /share/EAC/$vmtype/$vmtype.model $vmtype";
+    print "XDC command $xdccmd\n";
+    $cmd = $logincmd . "ssh -F config xdc-$proj \"$xdccmd\"";
+    $result=system($cmd);
+    if ($result == 0)
+    {
+	print "Experiment is now running\n";
+    }
+    #while (my $ref = $sth->fetchrow_hashref()) {
+    #    print "Found a row: name = $ref->{'firstName'}, ln = $ref->{'lastName'}\n";
+    #}
+}
