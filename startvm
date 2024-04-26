@@ -32,6 +32,7 @@ my %opt = ();
 if ($#ARGV < 2)
 {
     print $usage;
+    print "DONE";
     exit 1;
 }
 
@@ -244,13 +245,15 @@ if ($result != 0)
 	}
 	if ($result != 0)
 	{
-	      print "XDC did not come up within prescribed time\n";
-	      exit 1;
+	    print "XDC did not come up within prescribed time\n";
+	    print "DONE";
+	    exit 1;
 	}
     }
     else
     {
 	print "XDC creation has failed\n";
+	print "DONE";
 	exit 1;
     }
 }
@@ -271,3 +274,4 @@ if ($result == 0)
     #    print "Found a row: name = $ref->{'firstName'}, ln = $ref->{'lastName'}\n";
     #}
 }
+print "DONE";
