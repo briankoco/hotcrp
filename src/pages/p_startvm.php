@@ -174,12 +174,14 @@ class StartVm_Page {
 	    $_SESSION["filename"] = $_GET['createhash'];
 
 	    // count the lines exist in the file
-	    $file = '/tmp/'. $_SESSION["filename"];
-	    exec("touch " . $file);
+	    $file = 'data/'. $_SESSION["filename"];
+	    $result=exec("touch " . $file);
 	    $cmd = $cmd . " 2>&1 >> " . $file;
-	    echo "Cmd $cmd";
+	    $cmd = "echo \"" . $cmd . "\" | at -m now";
+	    echo "Cmd $cmd result of touch is $result";
 	    $this->get_log($file);
-	    exec($cmd);
+	    $output = shell_exec($cmd);
+	    echo "Output " . $output;
 
             $vmconfig = get_vm_connect_config($this->conf);
             $cluster_load = get_cluster_load($vmconfig, $db);

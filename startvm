@@ -77,14 +77,19 @@ my $sth;
 my %tocreate=();
 my $paperID = $ARGV[0];
 my $vmtype = $ARGV[1];
+# Set server
+my $cmd="mrg config set server grpc.mod.deterlab.net";
+system($cmd);
 # Create a project for paper if it does not exist
 my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\" && ";
 my $proj = $opt{'clusterOrg'} . "p" . $paperID;
 my $cmd = $logincmd . "mrg show project $proj";
+print "$cmd\n";
 my $result = system($cmd);
 if ($result != 0)
 {
     $cmd = $logincmd . "mrg new project $proj \"" . $opt{'clusterOrg'} . " AE for paper " . $paperID . "\" --category Research -o " . $opt{'clusterOrg'};
+    print "$cmd\n";
     $result = system($cmd);
 }
 # Figure out which cluster accounts we have created before
@@ -127,20 +132,24 @@ for (my $i = 2; $i <= $#ARGV; $i++)
 	    my $password = randompass();
 	    # Check if the user already exists, and if it does unregister them since we need to generate a new password
 	    my $cmd = $logincmd . "mrg show user $username";
+	    print "$cmd\n";
 	    my $result = system($cmd);
 	    if ($result == 0)
 	    {
 		# Assume that this will work
 		$cmd = $logincmd . "mrg delete user $username && mrg unregister $username";
+		print "$cmd\n";
 		system($cmd);
 		print "Existing user $username has been deleted, and new user will be created";
 	    }
 	    $cmd = "mrg register $username $email \"$firstName $lastName\" \"$affiliation\" Researcher \"$country\" $usstate -p \"$password\" -o $org";
+	    print "$cmd\n";
 	    # Execute the command in new process
 	    $result = system($cmd);
 	    if ($result == 0)
 	    {
 		$cmd =  $logincmd . "mrg membership confirm organization user " . $opt{'clusterOrg'} . " " . $username;
+		print "$cmd\n";
 		$result = system($cmd);
 		if ($result == 0)
 		{
@@ -155,6 +164,7 @@ for (my $i = 2; $i <= $#ARGV; $i++)
 		    $sth1->finish;
 		    # Join user to the project
 		    $cmd = $logincmd . "mrg update member project $proj $username";
+		    print "$cmd\n";
 		    $result = system($cmd);
 		    if ($result != 0)
 		    {
@@ -177,6 +187,7 @@ for (my $i = 2; $i <= $#ARGV; $i++)
     {
 	# Join user to the project
 	$cmd = $logincmd . "mrg update member project $proj $username";
+	print "$cmd\n";
 	$result = system($cmd);
 	if ($result != 0)
 	{
@@ -186,6 +197,19 @@ for (my $i = 2; $i <= $#ARGV; $i++)
     $sth->finish;
 }
 # Now create an XDC in that project if needed
+# First create a config file
+my $path="/var/www/html/data";
+my $config = "$path/config";
+my $admin=$opt{'clusterUser'};
+open(my $oh, '>', $config) or die $!;
+print $oh "
+Host *
+     IdentityFile $path/.ssh/merge_key
+     ServerAliveInterval 30
+     User $admin
+     StrictHostKeyChecking no
+     ProxyCommand ssh -o StrictHostKeyChecking=no -p 2022 -i ~/.ssh/merge_key -W %h:%p $admin\@jump.mod.deterlab.net";
+close($oh);
 $cmd=$logincmd . "mrg list xdcs | grep xdc.$proj";
 $result=system($cmd);
 if ($result != 0)    
@@ -193,19 +217,23 @@ if ($result != 0)
     # XDC needs to be created
     print "Creating XDC xdc.$proj\n";
     $cmd=$logincmd . "mrg new xdc xdc.$proj";
+    print "$cmd\n";
     $result=system($cmd);
     
     if ($result == 0)
-    {	    
+    {
+	sleep(30);
 	# Created XDC, now need to wait for it to be live
-	my $retries = 10;
+	my $retries = 30;
 	for (my $tries = 0; $tries < $retries; $tries++)
 	{
 	    print "Checking if the XDC is up\n";
-	    $cmd = $logincmd . "ssh -F config xdc-$proj \"ls ~/ > /dev/null\"";
+	    $cmd = $logincmd . "sudo -H -u merge ssh -F $config xdc-$proj \"ls ~\" 2>&1 < /dev/null ";
+	    print "$cmd\n";
 	    $result=system($cmd);
 	    if ($result != 0)
 	    {
+		print "Result $result\n";
 		sleep(1);		
 	    }
 	    else
@@ -214,15 +242,26 @@ if ($result != 0)
 		last;
 	    }
 	}
+	if ($result != 0)
+	{
+	      print "XDC did not come up within prescribed time\n";
+	      exit 1;
+	}
+    }
+    else
+    {
+	print "XDC creation has failed\n";
+	exit 1;
     }
 }
 if ($result == 0)
 {
     print "XDC exists and is running, we will now create the VM\n";
     # Now create the VM in that project
-    my $xdccmd="/share/staging/startexp -p $proj -n $proj$vmtype -m /share/EAC/$vmtype/$vmtype.model $vmtype";
+    my $xdccmd="/share/staging/startexp -p $proj -n $vmtype -m /share/EAC/$vmtype/$vmtype.model $vmtype";
     print "XDC command $xdccmd\n";
-    $cmd = $logincmd . "ssh -F config xdc-$proj \"$xdccmd\"";
+    $cmd = $logincmd . "sudo -H -u merge ssh -F $config xdc-$proj \"$xdccmd\"";
+    print "$cmd\n";
     $result=system($cmd);
     if ($result == 0)
     {

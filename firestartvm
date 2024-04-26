@@ -1,2 +1,2 @@
-export HOME="/tmp"
-perl startvm "$@" &
+export HOME="/var/www/html/data"
+nohup perl startvm "$@" &
