@@ -71,6 +71,18 @@ while (<$fh>)
 	}
     }
 }
+close($fh);
+
+my %vms=();
+# Read VM descriptions from file
+$fh = new IO::File($opt{'clusterVMs'});
+while (<$fh>)
+{
+    my @items= split /\|/, $_;
+    $items[1] =~ s/\n//;
+    $vms{$items[0]} = $items[1];
+}
+close($fh);
 
 my $dsn = "DBI:mysql:database=$opt{'dbName'}";
 my $dbh = DBI->connect($dsn, $opt{'dbUser'}, $opt{'dbPassword'});
@@ -269,9 +281,31 @@ if ($result == 0)
     if ($result == 0)
     {
 	print "Experiment is now running\n";
+	# Insert info into DB
+	
+	my $sth = $dbh->prepare(
+	    'INSERT INTO VMs(vmid, vmtype, vmdesc, paperId) values (?, ?, ?, ?)')
+	    or die "prepare statement failed: $dbh->errstr()";
+	$sth->bind_param(1, "$vmtype.$proj");
+	$sth->bind_param(2, $vmtype);
+	$sth->bind_param(3, $vms{$vmtype});
+	$sth->bind_param(4, $paperID);
+	$sth->execute or die "execution failed: $dbh->errstr()";
+	$sth->finish;
+
+	for (my $i = 2; $i <= $#ARGV; $i++)
+	{
+	    my $id = $ARGV[$i];
+    
+	    $sth = $dbh->prepare(
+		'INSERT INTO VMaccess (vmid, contactId) values (?, ?)')
+		or die "prepare statement failed: $dbh->errstr()";
+	    $sth->bind_param(1, "$vmtype.$proj");
+	    $sth->bind_param(2, $id);
+	    $sth->execute or die "execution failed: $dbh->errstr()";
+	    $sth->finish;
+	}
+	
     }
-    #while (my $ref = $sth->fetchrow_hashref()) {
-    #    print "Found a row: name = $ref->{'firstName'}, ln = $ref->{'lastName'}\n";
-    #}
 }
 print "DONE";

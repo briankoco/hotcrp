@@ -623,24 +623,35 @@ CREATE TABLE `TopicInterest` (
 
 
 --
+-- Table structure for table `VMaccess`
+--
+
+DROP TABLE IF EXISTS `VMaccess`;
+CREATE TABLE `VMaccess` (
+  `vmid` varchar(256) NOT NULL,
+  `contactId`  int(11) NOT NULL,
+  PRIMARY KEY (`vmid`, `contactId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
 -- Table structure for table `VMs`
 --
 
 DROP TABLE IF EXISTS `VMs`;
 CREATE TABLE `VMs` (
-  `vmid` int(11) NOT NULL,
+  `vmid`  varchar(256) NOT NULL,
   `vmtype` varchar(32) NOT NULL,
   `vmdesc` varchar(256) NOT NULL,
-  `contactId` int(11) NOT NULL,
   `paperId` int(11),
-  `reviewerVisible` BOOLEAN NOT NULL DEFAULT False,
-  `authorVisible` BOOLEAN NOT NULL DEFAULT False,
   `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `delete_time` DATETIME,
-  `last_changed` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `active` BOOLEAN NOT NULL DEFAULT True,
-  PRIMARY KEY (`vmid`, `contactId`)
+  `delete_time` DATETIME DEFAULT NULL,
+  `active` int(11) DEFAULT 1,
+  PRIMARY KEY (`vmid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Table structure for table `ClusterUsers`
+--
 
 DROP TABLE IF EXISTS `ClusterUsers`;
 CREATE TABLE `ClusterUsers` (

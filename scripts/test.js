@@ -13,6 +13,12 @@ function greet()
     if (xhttp.status == 200)
         {
 	    document.getElementById("startvm_log").value = xhttp.responseText;
+	    if (xhttp.responseText.includes("DONE"))
+	    {
+		//alert("Done");
+		document.getElementById("closeButton").style.display = "block";
+	    }
+	    
 	}
     } 
     time=new Date().getTime()    

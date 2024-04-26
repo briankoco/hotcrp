@@ -546,13 +546,14 @@ class Home_Page {
         
         foreach ($result as $cidkey => $cid) {
             if ($user->is_admin()) {
-                $vmdata = Dbl::qe($db, "select * from UserVMs WHERE active = 1");
-            //} elseif ($user->is_vm_user()) {
+                $vmdata = Dbl::qe($db, "select * from VMs where active = 1");
+
             } else {
-                $vmdata = Dbl::qe($db, "SELECT * FROM UserVMs WHERE contactId = ? AND active = 1 UNION SELECT UserVMs.* FROM PaperReview,UserVMs WHERE PaperReview.paperId = UserVMs.paperId AND PaperReview.contactId = ? AND UserVMs.reviewerVisible = 1 AND UserVMs.active = 1 UNION SELECT UserVMs.* FROM Paper,UserVMs WHERE authorInformation LIKE ".Dbl::utf8ci("'%\t?ls\t%'")." AND Paper.paperId = UserVMs.paperId AND UserVMs.active = 1 AND UserVMs.authorVisible = 1 ORDER BY vmid;", $cid['contactId'], $cid['contactId'], $email);
+                $vmdata = Dbl::qe($db, "SELECT * FROM VMs as v left join VMaccess as vma on v.vmId = vma.vmId  WHERE contactId = ? AND active = 1 ORDER BY v.vmid;", $cid['contactId']);
             };
-            foreach ($vmdata as $key => $vm){
-                $vmconfig = get_vm_connect_config($this->conf);
+            foreach ($vmdata as $vm){
+	    	    $vmid = $vm['v.vmid'];
+		    $vmdesc = $vm['vmdesc'];
                 $vmconfig = update_vm_config($vm['vmid'], $vmconfig, $db);
                 $vm_status = get_vm_status($vm['vmid'], $vmconfig);
                 
@@ -594,12 +595,11 @@ class Home_Page {
                 
                 $vms[$vm['vmid']] = array();
                 $vms[$vm['vmid']]['type'] = $vm['vmtype'];
-                $vms[$vm['vmid']]['fqdn'] = $vm_status['data']['name'];
-                
+		$vms[$vm['vmid']]['status'] = 'active';	
+
                 if ($vm_status['data']['status'] == 'running') {
                     $vm_ifstat = get_vm_ifstat($vm['vmid'], $vmconfig);
-                    $vms[$vm['vmid']]['ipv4'] = $vm_ifstat['ipv4'];
-                    $vms[$vm['vmid']]['ipv6'] = $vm_ifstat['ipv6'];
+
                     if ($vm_ifstat['mac'] && $vm_ifstat['ipv4'] && $vm_ifstat['ipv6']) {
                         $vmlog = Dbl::qe($db, "INSERT INTO UserVMLogs (vmid, createHash, contactId, mac, ipv4, ipv6 ) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE seen_last = NOW()", $vm['vmid'], $vm['createHash'], $cid['contactId'], $vm_ifstat['mac'], $vm_ifstat['ipv4'], $vm_ifstat['ipv6']);
                     };
@@ -627,9 +627,6 @@ class Home_Page {
                         ';
                     };
                 } else {
-                    $vms[$vm['vmid']]['ipv4'] = "-";
-                    $vms[$vm['vmid']]['ipv6'] = "-";
-                    $vms[$vm['vmid']]['uptime'] = "-";
                     $vms[$vm['vmid']]['status'] = '<div title="Stopped" style="color:gray" align="center">&#x23FC;</div>';
                     if ($vm_owner_self) {
                         $vms[$vm['vmid']]['actions'] = '
@@ -688,35 +685,6 @@ class Home_Page {
                     $vm_reviewer_access = $vm['reviewerVisible'];
                 };
                 if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
-                    $vms[$vm['vmid']]['reviewer_access'] = '<div class="checki"><label><span class="checkc">'.
-                        Ht::checkbox("reviewer_access".$vm['vmid'], 1, $vm_reviewer_access, ["data-default-checked" => $vm_reviewer_access, "class" => "uich", "onChange" => 'vmif_toggle_button_visibility("update'.$vm['vmid'].'", "'.$vm_reviewer_access.'", "revaccess", this)']).
-                        '</span></label>'.
-                        '</div>'."\n";
-                } else {
-                    if ($vm_reviewer_access) {
-                        $vms[$vm['vmid']]['reviewer_access'] = 'Yes';
-                    } else {
-                        $vms[$vm['vmid']]['reviewer_access'] = 'No';
-                    }
-                };
-
-                $vm_author_access = False;
-                if ($vm['authorVisible']) {
-                    $vm_author_access = $vm['authorVisible'];
-                };
-                if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
-                    $vms[$vm['vmid']]['author_access'] = '<div class="checki"><label><span class="checkc">'.
-                        Ht::checkbox("author_access".$vm['vmid'], 1, $vm_author_access, ["data-default-checked" => $vm_author_access, "class" => "uich", "onChange" => 'vmif_toggle_button_visibility("update'.$vm['vmid'].'", "'.$vm_author_access.'", "autaccess", this)']).
-                        '</span></label>'.
-                        '</div>'."\n";
-                } else {
-                    if ($vm_author_access) {
-                        $vms[$vm['vmid']]['author_access'] = 'Yes';
-                    } else {
-                        $vms[$vm['vmid']]['author_access'] = 'No';
-                    }
-                };
-                if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
                     $vms[$vm['vmid']]['button'] = Ht::submit("update".$vm['vmid'], "Save", ["class" => "btn-primary hidden", "type" => "submit", "onClick" => "vmif_submit_update('".$vm['vmid']."', this);"]);
                     $vms[$vm['vmid']]['button'] .= "</form>\n";
                 };
@@ -735,15 +703,7 @@ class Home_Page {
                     </th>
                     <th class="pl plh pl_type" data-pc="type">Type
                     </th>
-                    <th class="pl plh pl_fqdn" data-pc="fqdn">FQDN
-                    </th>
-                    <th class="pl plh pl_ipv4" data-pc="ipv4">IPv4
-                    </th>
-                    <th class="pl plh pl_ipv6" data-pc="ipv4">IPv6
-                    </th>
                     <th class="pl plh pl_pl_uptime" data-pc="pl_uptime">Uptime
-                    </th>
-                    <th class="pl plh pl_pl_status" data-pc="pl_status">Status
                     </th>
                     <th class="pl plh pl_status pl-status" data-pc="status">Actions
                     </th>
@@ -751,18 +711,15 @@ class Home_Page {
                     </th>
                     <th class="pl plh pl_status pl-status" data-pc="status">Paper#
                     </th>
-                    <th class="pl plh pl_status pl-status" data-pc="status">Reviewer<br>Access
-                    </th>
-                    <th class="pl plh pl_status pl-status" data-pc="status">Author<br>Access
-                    </th>
                     </tr>';
         echo ' </thead>';
         echo '  <tbody class="pltable pltable-colored">';
         $tag = '';
         foreach ($vms as $vmid => $vminfo ){
+	
             echo '<tr class="pl '.$tag.' k0 plnx" data-pid="'.$vmid.'" data-tags="'.$vms[$vmid]["fqdn"].'">'."\n";
             echo '<td class="pl pl_id">';
-            echo $vmid;
+            echo $vmid; 
             echo '</td>';
             if ($tag == '') {
                 $tag = 'tag-gray';

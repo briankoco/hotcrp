@@ -30,42 +30,6 @@ class StartVm_Page {
      a=setInterval(fun("'  . $_GET['createhash'] . '"), 3000);
     </script>';
 
-    echo "Called with " . $_GET['createhash'];
-    $messages=[];
-    $logfile = fopen($file, "r") or die(json_encode(array_push($messages, "Error")));
-    $count = 0;
-    while(!feof($logfile) || $count < $_SESSION['pos']){
-    	$tmp = fgets($logfile);
-    	$count++;
-    }
-
-    echo "Count " . $count . " file " . $file . " pos " . $_SESSION['pos'];
-   
-    // if the session var that holds the offset position is not set 
-    // or has value more than the lines of text file
-    if (!isset($_SESSION['pos']) || $_SESSION['pos'] >= $count) {
-	        $_SESSION['pos'] = 0; // back to the beginning
-    	    } 
-
-
-    // the array that holds the logs data
-    $messages = array(); 
-
-    // move the pointer to the current position
-    fseek($logfile, $_SESSION['pos']);
-    
-    // read the file
-     while(!feof($logfile)){
-       $msg = fgets($logfile);
-       	$msg1 = explode("\n", $msg);
-       	array_push($messages, $msg1);
-       	$_SESSION['pos']++;
-     }
-
-    // return the array
-    echo json_encode($messages);
-
-    fclose($logfile);
     }
 
     // this is useful for post stuff
@@ -171,6 +135,7 @@ class StartVm_Page {
 		$cmd = $cmd . " " . $p;
        	    }
 	    echo '<p><textarea id="startvm_log" name="startvm_log" rows="40" cols="100"></textarea><p>';
+	    echo '<p><input type="submit" value="Close" id="closeButton" style="display: none;" onclick="window.close();">';
 	    $_SESSION["filename"] = $_GET['createhash'];
 
 	    // count the lines exist in the file
@@ -180,42 +145,7 @@ class StartVm_Page {
 	    $cmd = "echo \"" . $cmd . "\" | at -m now";
 	    $this->get_log($file);
 	    $output = shell_exec($cmd);
-
-            $vmconfig = get_vm_connect_config($this->conf);
-            $cluster_load = get_cluster_load($vmconfig, $db);
-            if ($cluster_load['stats'][$_GET['vm-types']] < 1) {
-                echo '<p><b>Cannot create VM:</b> Currently all VMs of this type are allocated!</p>';
-            } else { 
-                $new_vm = create_new_vm($_GET['vm-types'], $vmconfig, $db, $cluster_load);
-                if ($new_vm) {
-                    $result = Dbl::qe($db, "INSERT INTO UserVMs (vmid, vmtype, vmnode, vmcluster, createHash, contactId) VALUES (?, ?, ?, ?, ?, ?);", $new_vm['vmid'], $_GET['vm-types'], $new_vm['vmnode'], $new_vm['vmcluster'], $_GET['createhash'], $user->contactId );
-                    if ($_GET['vm-types'] == 'gpu') {
-                        echo '<p>We created a new VM for you. Give it a few minutes to get setup. You can then see the IP address to which you can connect via SSH on the main page.<br><br>To connect use "ssh artifacts@'.$new_vm['vmname'].'"<br><br></p>';
-                        echo '<br><br>On a GPU the following tools are pre-installed to check that CUDA is working:<br><br><code>cuda-bandwidthTest<br>cuda-deviceQuery<br>cuda-deviceQueryDrv<br>cuda-topologyQuery<br></code><br><br>';
-                    } else {
-                        echo '<p>We created a new VM for you. Give it a few minutes to get setup. You can then see the IP address to which you can connect via SSH on the main page.<br><br>To connect use "ssh artifacts@'.$new_vm['vmname'].'"<br><br></p>';
-    
-                    };
-                    echo '<table>';
-                    echo '<tr>';
-                    echo '<td><b>Hostname: </b></td>';
-                    echo '<td>'.$new_vm['vmname'].'</td>';
-                    echo '</tr>';
-                    echo '<tr>';
-                    echo '<tr>';
-                    echo '<td><b>Username: </b></td>';
-                    echo '<td>artifacts</td>';
-                    echo '</tr>';
-                    echo '<td><b>Password: </b></td>';
-                    echo '<td>'.$new_vm['password'].'</td>';
-                    echo '</tr>';
-                    echo '</table><br><br>';
-                    echo '<p><b>Please note down the password!</b> If you forget to do that, you can later request a new password via the VM interface on the main page.</p>';
-                } else {
-                    echo '<p><b>Something went wrong!</b> Please contact an administrator.</p>';
-                }
-            }
-        }
+	    }
     }
 
     function reset_vm_pw(Contact $user, Qrequest $qreq, $vmid) {
