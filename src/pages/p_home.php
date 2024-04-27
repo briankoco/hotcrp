@@ -554,8 +554,6 @@ class Home_Page {
             foreach ($vmdata as $vm){
 	    	    $vmid = $vm['v.vmid'];
 		    $vmdesc = $vm['vmdesc'];
-                $vmconfig = update_vm_config($vm['vmid'], $vmconfig, $db);
-                $vm_status = get_vm_status($vm['vmid'], $vmconfig);
                 
                 // Find owner
                 $vm_owner_qry = Dbl::qe($db, "select email from ContactInfo where contactId = ? and not disabled order by email asc limit 1", $vm['contactId']);
@@ -651,42 +649,8 @@ class Home_Page {
                     $vm_paper_id = $vm['paperId'];
                 };
                 if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
-                    
-                    $vms[$vm['vmid']]['paper'] = '            <select name="paperidvm'.$vm['vmid'].'" id="paperidvm'.$vm['vmid'].'" onChange="'."vmif_toggle_button_visibility('update".$vm['vmid']."', 'initval".$vm_paper_id."', 'paperid', this)".';">';
-                    $vms[$vm['vmid']]['paper'] .= '                <option value="-">-</option> ';
-                    $user_papers = array();
-                    if ($user->is_author()) {
-                        $plist = $user->authored_papers();
-                        foreach ($plist as $idx => $paper) {
-                            $user_papers[$paper->paperId] = "(Author)";
-                        }
-                    }
-                    if ($user->is_reviewer()) {
-                        $plist = $user->papers_for_review();
-                        foreach ($plist as $idx => $paper) {
-                            $user_papers[$paper->paperId] = "(Reviewer)";
-                        }
-                    }
-                    ksort($user_papers);
-                    foreach ($user_papers as $paperId => $paperType) {
-                        if ($paperId == $vm_paper_id) {
-                            $vms[$vm['vmid']]['paper'] .= '                <option value="'.$paperId.'" selected>'.$paperId.' '.$paperType.'</option> ';
-                        } else {
-                            $vms[$vm['vmid']]['paper'] .= '                <option value="'.$paperId.'">'.$paperId.' '.$paperType.'</option> ';
-                        }
-                    }
-                    $vms[$vm['vmid']]['paper'] .= '            </select>';
-                } else {
-                    $vms[$vm['vmid']]['paper'] = $vm_paper_id;
-                };
-
-                $vm_reviewer_access = False;
-                if ($vm['reviewerVisible']) {
-                    $vm_reviewer_access = $vm['reviewerVisible'];
-                };
-                if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
-                    $vms[$vm['vmid']]['button'] = Ht::submit("update".$vm['vmid'], "Save", ["class" => "btn-primary hidden", "type" => "submit", "onClick" => "vmif_submit_update('".$vm['vmid']."', this);"]);
-                    $vms[$vm['vmid']]['button'] .= "</form>\n";
+                    $vms[$vm['vmid']]['paper'] = "";
+		    
                 };
             };
         };
