@@ -148,11 +148,12 @@ class StartVm_Page {
 	    }
     }
 
-    function reset_vm_pw(Contact $user, Qrequest $qreq, $vmid) {
+    function reset_vm(Contact $user, Qrequest $qreq, $vmid) {
+        echo "In reset vm";
         if (!($db = $user->conf->contactdb())) {
             $db = $user->conf->dblink;
         }
-        $result = Dbl::qe($db, "SELECT * FROM UserVMs WHERE contactId = ? AND active = 1 AND vmid = ? UNION SELECT UserVMs.* FROM PaperReview,UserVMs WHERE PaperReview.paperId = UserVMs.paperId AND PaperReview.contactId = ? AND UserVMs.reviewerVisible = 1 AND UserVMs.active = 1 AND UserVMs.vmid = ? UNION SELECT UserVMs.* FROM Paper,UserVMs WHERE authorInformation LIKE ".Dbl::utf8ci("'%\t?ls\t%'")." AND Paper.paperId = UserVMs.paperId AND UserVMs.active = 1 AND UserVMs.authorVisible = 1 AND UserVMs.vmid = ? ORDER BY vmid;", $user->contactId, $vmid, $user->contactId, $vmid, $user->email, $vmid);
+        $result = Dbl::qe($db, "SELECT * FROM VMaccess WHERE contactId = ? and vmId = ?;", $user->contactId, $vmid);
         if (!$result->fetch_assoc()) {
             $qreq->print_header("Access Denied", "createvm");
 
@@ -161,33 +162,49 @@ class StartVm_Page {
             $qreq->print_footer();
         } else {
             include_once('src/pve_api/pve_functions.php');
-            $vmconfig = get_vm_connect_config($this->conf);
-            $vmconfig = update_vm_config($vmid, $vmconfig, $db);
-            $new_pass = reset_vm_password($vmid, $vmconfig);
-            $vm_status = get_vm_status($vmid, $vmconfig);
-            if ($new_pass) {
-                $qreq->print_header("Password Reset", "createvm");
 
-                echo '<p>We reset the password for your VM. You can now login again with "ssh artifacts@'.$vm_status['data']['name'].'" using the details below:<br><br></p>';
-                echo '<table>';
-                echo '<tr>';
-                echo '<td><b>Hostname: </b></td>';
-                echo '<td>'.$vm_status['data']['name'].'</td>';
-                echo '</tr>';
-                echo '<tr>';
-                echo '<tr>';
-                echo '<td><b>Username: </b></td>';
-                echo '<td>artifacts</td>';
-                echo '</tr>';
-                echo '<td><b>Password: </b></td>';
-                echo '<td>'.$new_pass.'</td>';
-                echo '</tr>';
-                echo '</table><br><br>';
-                echo '<p><b>Please note down the password!</b> If you forget to do that, you can later request a new password via the VM interface on the main page.</p>';
-            } else {
-                echo '<p><b>Something went wrong!</b> Please contact an administrator.</p>';
-            }
-        }
+            $qreq->print_header("Resetting the VM", "resetvm");
+
+	    $people=[];
+	    $result = Dbl::qe($db, "select authorInformation from Paper WHERE paperID = ?;", $this->pid);
+	    
+	    while (($row = $result->fetch_row())) {
+	    $strings = preg_split('/\s+/',$row[0]);
+	    foreach ($strings as $s)
+	    {
+		if (str_contains($s, "@"))
+		{
+			 $resulti = Dbl::qe($db, "select contactId from ContactInfo WHERE email = ?;", $s);
+			 while (($rowi = $resulti->fetch_row())) {
+			   $id = $rowi[0];
+		    	   array_push($people, $id);
+		          }
+		}
+	     }
+	   }
+	    $result = Dbl::qe($db, "select contactId from PaperReview WHERE paperID = ?;", $this->pid);
+
+            while (($row = $result->fetch_row())) {
+
+	    	  $id = $row[0];
+		  array_push($people, $id);
+	    }
+	    $cmd = "bash fireresetvm " . $this->pid . " small ";
+	    foreach ($people as $p)
+	    {
+		$cmd = $cmd . " " . $p;
+       	    }
+	    echo '<p><textarea id="startvm_log" name="startvm_log" rows="40" cols="100"></textarea><p>';
+	    echo '<p><input type="submit" value="Close" id="closeButton" style="display: none;" onclick="window.close();">';
+	    $_SESSION["filename"] = $_GET['createhash'];
+
+	    // count the lines exist in the file
+	    $file = 'data/'. $_SESSION["filename"];
+	    $result=exec("touch " . $file);
+	    $cmd = $cmd . " 2>&1 >> " . $file;
+	    $cmd = "echo \"" . $cmd . "\" | at -m now";
+	    $this->get_log($file);
+	    $output = shell_exec($cmd);
     }
 
     function call_vm_action(Contact $user, Qrequest $qreq, $vmid, $action) {
@@ -258,6 +275,7 @@ class StartVm_Page {
                 return;
             }
         }
+      }
     }
     static function go(Contact $user, Qrequest $qreq) {
         if (!$user->email) {
@@ -276,10 +294,11 @@ class StartVm_Page {
         if ($qreq->post && $qreq->valid_post()) {
             $op->handle_post_request();
         } elseif (array_key_exists('action', $_GET)) {
+	    echo "Figuring action";
             if ($_GET['action'] == 'create' && array_key_exists('createhash', $_GET)) {
                 $op->create_vm($user, $qreq);
-            } elseif ($_GET['action'] == 'resetpw' && array_key_exists('vmid', $_GET)) {
-                $op->reset_vm_pw($user, $qreq, $_GET['vmid']);
+            } elseif ($_GET['action'] == 'reset' && array_key_exists('vmid', $_GET)) {
+                $op->reset_vm($user, $qreq, $_GET['vmid']);
             } elseif (array_key_exists('action', $_GET) && array_key_exists('vmid', $_GET)) {
                 $op->call_vm_action($user, $qreq, $_GET['vmid'], $_GET['action']);
             };

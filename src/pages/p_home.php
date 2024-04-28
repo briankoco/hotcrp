@@ -550,109 +550,27 @@ class Home_Page {
 
             } else {
                 $vmdata = Dbl::qe($db, "SELECT * FROM VMs as v left join VMaccess as vma on v.vmId = vma.vmId  WHERE contactId = ? AND active = 1 ORDER BY v.vmid;", $cid['contactId']);
-            };
+            }
             foreach ($vmdata as $vm){
-	    	    $vmid = $vm['v.vmid'];
+	    	    foreach ($vm as $key => $val)
+		    {
+		    echo "Key $key val $val ";
+		    
+		    }
+	    	    $vmid = $vm['vmid'];
+		    echo "ID $vmid";
 		    $vmdesc = $vm['vmdesc'];
                 
-                // Find owner
-                $vm_owner_qry = Dbl::qe($db, "select email from ContactInfo where contactId = ? and not disabled order by email asc limit 1", $vm['contactId']);
-                $vm_owner = '';
-                $vm_owner_self = false;
-                foreach ($vm_owner_qry as $key => $vm_owner_mail){
-                    if ($vm_owner_mail) {
-                        if ($vm_owner_mail['email'] == $email) {
-                            $vm_owner = '<b>'.$vm_owner_mail['email'].'</b>';
-                            $vm_owner_self = true;
-                        } else {
-                            if ($user->is_admin()) {
-                                $vm_owner = '<i>'.$vm_owner_mail['email'].'</i>';
-                            } else {
-                                // Always blinding author/reviewer names for now
-                                $reviewer_data = Dbl::qe($db, "SELECT paperId from PaperReview WHERE paperId = ? AND contactId = ?;", $vm['paperId'], $vm['contactId']);
-                                $rpaper = false;
-                                foreach ($reviewer_data as $rkey => $rval) {
-                                    $rpaper = true;
-                                };
-                                $author_data = Dbl::qe($db, "SELECT paperId FROM Paper WHERE authorInformation LIKE ".Dbl::utf8ci("'%\t?ls\t%'")." AND paperId = ?;", $vm_owner_mail['email'], $vm['paperId']);
-                                $apaper = false;
-                                foreach ($author_data as $rkey => $rval) {
-                                    $apaper = true;
-                                };
-                                if ($rpaper) {
-                                    $vm_owner = "<i>Anon. Reviewer</i>";
-                                } elseif ($apaper) {
-                                    $vm_owner = "<i>Anon. Author</i>";
-                                } else {
-                                    $vm_owner = "<i>Blind</i>";
-                                };
-                            };
-                        };
-                    }
-                };
-                
-                $vms[$vm['vmid']] = array();
-                $vms[$vm['vmid']]['type'] = $vm['vmtype'];
-		$vms[$vm['vmid']]['status'] = 'active';	
-
-                if ($vm_status['data']['status'] == 'running') {
-                    $vm_ifstat = get_vm_ifstat($vm['vmid'], $vmconfig);
-
-                    if ($vm_ifstat['mac'] && $vm_ifstat['ipv4'] && $vm_ifstat['ipv6']) {
-                        $vmlog = Dbl::qe($db, "INSERT INTO UserVMLogs (vmid, createHash, contactId, mac, ipv4, ipv6 ) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE seen_last = NOW()", $vm['vmid'], $vm['createHash'], $cid['contactId'], $vm_ifstat['mac'], $vm_ifstat['ipv4'], $vm_ifstat['ipv6']);
-                    };
-                    if ($vm_status['data']['uptime'] > 86400 ) {
-                        $vms[$vm['vmid']]['uptime'] = gmdate("d\d H\h i\m s\s",$vm_status['data']['uptime']);
-                    } else {
-                        $vms[$vm['vmid']]['uptime'] = gmdate("H\h i\m s\s",$vm_status['data']['uptime']);
-                    };
-                    $vms[$vm['vmid']]['status'] = '<div title="Running" style="color:green" align="center">&#x25B6;</div>';
-                    if ($vm_owner_self) {
-                        $vms[$vm['vmid']]['actions'] = '
-                            <a title="VM Console" class="vmbtn" href="startvm.php?action=console&vmid='.$vm['vmid'].'" target="_blank"><span class="vmbtn" style="color:black" align="center">&#x1F5B5;</span></a>
-                            <a title="Power Off" class="vmbtn" onClick="trigger_vm_action(\'stop\', \''.$vm['vmid'].'\')" target="_blank"><span class="vmbtn" style="color:red" align="center">&#x23FC;</span></a>
-                            <a title="Hard Reset" class="vmbtn" onClick="trigger_vm_action(\'reset\', \''.$vm['vmid'].'\')" target="_blank"><span class="vmbtn" style="color:black" align="center">&#x21ba</span></a>
-                            <a title="Remove VM" class="vmbtn" onClick="trigger_vm_action(\'delete\', \''.$vm['vmid'].'\')" target="_blank"><span class="vmbtn" style="color:red" align="center">&#x1F5D9;</span></a>
-                            <a title="Reset Password" class="vmbtn" href="startvm.php?action=resetpw&vmid='.$vm['vmid'].'" target="_blank"><span class="vmbtn" style="color:black" align="center"><b>?</b></span></a>
-                        ';
-                    } else {
-                        $vms[$vm['vmid']]['actions'] = '
-                            <a title="VM Console" class="vmbtn" href="startvm.php?action=console&vmid='.$vm['vmid'].'" target="_blank"><span class="vmbtn" style="color:black" align="center">&#x1F5B5;</span></a>
-                            <span title="Power off (not allowed)" style="color:gray" align="center">&#x23FC;</span>
-                            <span title="Hard Reset (not allowed)" style="color:gray" align="center">&#x21ba</span>
-                            <span title="Remove VM (not allowed)" style="color:gray" align="center">&#x1F5D9;</span>
-                            <a title="Reset Password" class="vmbtn" href="startvm.php?action=resetpw&vmid='.$vm['vmid'].'" target="_blank"><span class="vmbtn" style="color:black" align="center"><b>?</b></span></a>
-                        ';
-                    };
-                } else {
-                    $vms[$vm['vmid']]['status'] = '<div title="Stopped" style="color:gray" align="center">&#x23FC;</div>';
-                    if ($vm_owner_self) {
-                        $vms[$vm['vmid']]['actions'] = '
-                            <a title="Start VM" class="vmbtn" onClick="trigger_vm_action(\'start\', \''.$vm['vmid'].'\')" target="_blank"><span class="vmbtn" style="color:green" align="center">&#x25B6;</span></a>
-                            <a title="Remove VM" class="vmbtn" onClick="trigger_vm_action(\'delete\', \''.$vm['vmid'].'\')" target="_blank"><span class="vmbtn" style="color:red" align="center">&#x1F5D9;</span></a>
-                        ';
-                    } else {
-                        $vms[$vm['vmid']]['actions'] = '
-                            <span title="Start VM (not allowed)" style="color:gray" align="center">&#x25B6;</span>
-                            <span title="Remove VM (not allowed)" style="color:gray" align="center">&#x1F5D9;</span>
-                        ';
-                    };
-                };
-                $vms[$vm['vmid']]['owner'] = $vm_owner;
-                if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
-                    $vms[$vm['vmid']]['prefix'] = Ht::unstash();
-                    $vms[$vm['vmid']]['prefix'] .= $this->conf->make_script_file("scripts/vmsettings.js")."\n";
-                };
-                $vms[$vm['vmid']]['paper'] = 'none';
-                $vm_paper_id = 'none';
-                if ($vm['paperId']) {
-                    $vm_paper_id = $vm['paperId'];
-                };
-                if ($vms[$vm['vmid']]['owner'] == '<b>'.$email.'</b>') {
-                    $vms[$vm['vmid']]['paper'] = "";
+		    $vms[$vmid] = array();
+                    $vms[$vmid]['type'] = $vm['vmtype'];
+                    $vms[$vmid]['paper'] = $vm['paperId'];
+		    $vms[$vmid]['started'] = $vm['create_time'];
+		    $vms[$vmid]['connect'] = "<a href=\"something\">term</a>";
+		    $createhash = random_str(15);
+		    $vms[$vmid]['reset'] = "<a href=\"startvm.php?type=" . $vm['vmtype'] . "&action=reset&pid=" . $vm['paperId'] . "&vmid=" . $vmid . "&createhash=" . $createhash . "\">reset</a>";
+		    $vms[$vmid]['release'] = "<a href=\"something\">release</a>";
 		    
-                };
-            };
+		    }		 
         };
         
         if (!$vms) {
@@ -663,17 +581,19 @@ class Home_Page {
 
         echo '  
                     <tr class="pl_headrow">
-                    <th class="pl plh pl_id" data-pc="id">ID
+                    <th class="pr plh pl_id" data-pc="id">ID
                     </th>
-                    <th class="pl plh pl_type" data-pc="type">Type
+                    <th class="pr plh pl_type" data-pc="type">Type
                     </th>
-                    <th class="pl plh pl_pl_uptime" data-pc="pl_uptime">Uptime
+                    <th class="pr plh pl_status pl-status" data-pc="status">Paper #
                     </th>
-                    <th class="pl plh pl_status pl-status" data-pc="status">Actions
+                    <th class="pr plh pl_status pl-status" data-pc="status">Created
                     </th>
-                    <th class="pl plh pl_status pl-status" data-pc="status">Owner
+                    <th class="pr plh pl_status pl-status" data-pc="status">Connect
                     </th>
-                    <th class="pl plh pl_status pl-status" data-pc="status">Paper#
+		    <th class="pr plh pl_status pl-status" data-pc="status">Jiggle
+                    </th>
+		    <th class="pr plh pl_status pl-status" data-pc="status">Release
                     </th>
                     </tr>';
         echo ' </thead>';
@@ -682,7 +602,7 @@ class Home_Page {
         foreach ($vms as $vmid => $vminfo ){
 	
             echo '<tr class="pl '.$tag.' k0 plnx" data-pid="'.$vmid.'" data-tags="'.$vms[$vmid]["fqdn"].'">'."\n";
-            echo '<td class="pl pl_id">';
+            echo '<td class="pr pr_id">';
             echo $vmid; 
             echo '</td>';
             if ($tag == '') {
@@ -692,13 +612,13 @@ class Home_Page {
             };
             foreach ($vms[$vmid] as $vmpropname => $vmprop ) {
                 if ($vmpropname == 'paper') {
-                    echo '<td class="pl pl_'.$vmpropname.'">';
+                    echo '<td class="pr pr_'.$vmpropname.'">';
                     echo $vmprop;
                     echo '</td>';
                 } elseif ($vmpropname == 'prefix') {
                     echo $vmprop;
                 } else {
-                    echo '<td class="pl pl_'.$vmpropname.'">';
+                    echo '<td class="pr pr_'.$vmpropname.'">';
                     echo $vmprop;
                     echo '</td>';
                 };

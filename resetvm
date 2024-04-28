@@ -1,0 +1,407 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use DBI;
+
+$|=1;
+
+
+sub randompass()
+{
+	my @alphanumeric = ('a'..'z', 'A'..'Z', 0..9,'!','_','-');
+	my @numeric = (0..9);
+	my $randpassword = '';
+
+	while ( length($randpassword) < 8 ) {
+              $randpassword = $randpassword . join '', map $alphanumeric[rand @alphanumeric], 0..(rand @numeric);
+	}
+	print "Rand pass $randpassword\n";
+	$randpassword .= '#';
+	return $randpassword;
+}
+
+# Flow is very similar to startvm. We will
+# create any new accounts if needed, will
+# join them into the project, will try to
+# connect to XDC and recreate it if connection
+# failed, will restart experiment if needed,
+# and will reattach. XDC create, attach and
+# startexp will be retried RETRIES times.
+
+my $RETRIES = 3;
+my $SSH = "ssh -o StrictHostKeyChecking=no";
+    
+# Take paper ID, type of VM to create
+# and a list of IDs that need access
+# like startvm 2 small 4 2 1
+
+my $usage="$0 paper-ID vm-type contact-IDs\n";
+my %opt = ();
+
+
+if ($#ARGV < 2)
+{
+    print $usage;
+    print "DONE";
+    exit 1;
+}
+
+# Read info from conf/options.php
+# to get orgName, dbUser, etc.
+my $fh = new IO::File("conf/options.php");
+while (<$fh>)
+{
+    if ($_ =~ /\$Opt/ && $_ =~ /\=/)
+    {
+	my @arr = split /[\[\]\"\=\s+\;]/, $_;	
+	if ($#arr > 3)
+	{
+	    my $intake = 0;
+	    for my $a (@arr)
+	    {
+		if ($a !~ /[\[\]\"\=\s+]/ && $a =~ /[a-zA-Z0-9]/)
+		{
+		    if ($a =~ /^\$Opt/)
+		    {
+			$intake = 1;
+			next;
+		    }
+		    if ($intake =~ /^[0-9]$/ && $intake == 1)
+		    {
+			$opt{$a} = 0;
+			$intake = $a;
+		    }
+		    else
+		    {
+			$opt{$intake} = $a;
+			last;
+		    }
+		}
+	    }
+	}
+    }
+}
+close($fh);
+
+my %vms=();
+# Read VM descriptions from file
+$fh = new IO::File($opt{'clusterVMs'});
+while (<$fh>)
+{
+    my @items= split /\|/, $_;
+    $items[1] =~ s/\n//;
+    $vms{$items[0]} = $items[1];
+}
+close($fh);
+
+my $dsn = "DBI:mysql:database=$opt{'dbName'}";
+my $dbh = DBI->connect($dsn, $opt{'dbUser'}, $opt{'dbPassword'});
+my $sth;
+my %tocreate=();
+my $paperID = $ARGV[0];
+my $vmtype = $ARGV[1];
+# Set server
+my $cmd="mrg config set server grpc.mod.deterlab.net";
+system($cmd);
+# Create a project for paper if it does not exist
+my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\" && ";
+my $proj = $opt{'clusterOrg'} . "p" . $paperID;
+$cmd = $logincmd . "mrg show project $proj";
+print "$cmd\n";
+my $result = system($cmd);
+if ($result != 0)
+{
+    print "Project $proj does not exist. Please go back to the paper page to start a VM for this paper.\n";
+    print "DONE";
+    exit 1;
+}
+# Figure out which cluster accounts we have created before
+my $org = $opt{'clusterOrg'};
+for (my $i = 2; $i <= $#ARGV; $i++)
+{
+    my $id = $ARGV[$i];
+    my $username = $org . "u" .  $ARGV[$i];
+    $sth = $dbh->prepare(
+	'SELECT * FROM ClusterUsers WHERE contactID = ?')
+	or die "prepare statement failed: $dbh->errstr()";
+    $sth->execute($ARGV[$i]) or die "execution failed: $dbh->errstr()";
+    # If no account exists according to HotCRP try to create it or re-create it and save
+    if ($sth->rows == 0)
+    {
+	print "Create account for " . $ARGV[$i] . "\n";
+	$sth = $dbh->prepare(
+	    'SELECT * FROM ContactInfo WHERE contactID = ?')
+	    or die "prepare statement failed: $dbh->errstr()";
+	$sth->execute($ARGV[$i]) or die "execution failed: $dbh->errstr()";
+	while (my $ref = $sth->fetchrow_hashref()) {
+	    my $usstate = "";
+	    my $firstName = $ref->{'firstName'};
+	    my $lastName = $ref->{'lastName'};
+	    my $email = $ref->{'email'};
+	    my $affiliation = $ref->{'affiliation'};
+	    my $country= $ref->{'country'};
+	    if ($affiliation eq "")
+	    {
+		$affiliation = "HotCRP";
+	    }
+	    if ($country eq "" || $country eq "United States of America")
+	    {
+		$country = "United States";
+	    }
+	    if ($country eq "United States")
+	    {
+		$usstate = "--usstate CA";
+	    }
+	    my $password = randompass();
+	    # Check if the user already exists, and if it does unregister them since we need to generate a new password
+	    my $cmd = $logincmd . "mrg show user $username";
+	    print "$cmd\n";
+	    my $result = system($cmd);
+	    if ($result == 0)
+	    {
+		# Assume that this will work
+		$cmd = $logincmd . "mrg delete user $username && mrg unregister $username";
+		print "$cmd\n";
+		system($cmd);
+		print "Existing user $username has been deleted, and new user will be created";
+	    }
+	    $cmd = "mrg register $username $email \"$firstName $lastName\" \"$affiliation\" Researcher \"$country\" $usstate -p \"$password\" -o $org";
+	    print "$cmd\n";
+	    # Execute the command in new process
+	    $result = system($cmd);
+	    if ($result == 0)
+	    {
+		$cmd =  $logincmd . "mrg membership confirm organization user " . $opt{'clusterOrg'} . " " . $username;
+		print "$cmd\n";
+		$result = system($cmd);
+		if ($result == 0)
+		{
+		    print "Successfully registered user $username\n";
+		    my $sth1 = $dbh->prepare(
+			'INSERT INTO ClusterUsers(contactID, username, password) values (?, ?, ?)')
+			or die "prepare statement failed: $dbh->errstr()";
+		    $sth1->bind_param(1, $id);
+		    $sth1->bind_param(2, $username);
+		    $sth1->bind_param(3,$password);
+		    $sth1->execute or die "execution failed: $dbh->errstr()";
+		    $sth1->finish;
+		    # Join user to the project
+		    $cmd = $logincmd . "mrg update member project $proj $username";
+		    print "$cmd\n";
+		    $result = system($cmd);
+		    if ($result != 0)
+		    {
+			print "Membership update for project $proj and user $username failed";
+		    }
+		}
+		else
+		{
+		    print "Registration of $username for email $email has worked but we could not activate the user. Please contact testbed ops.\n";
+		}
+	    }
+	    else
+	    {
+		print "Registration of $username for email $email has failed. Please contact testbed ops.\n";
+	    }
+	}
+	$sth->finish;
+    }
+    else
+    {
+	# Join user to the project
+	$cmd = $logincmd . "mrg update member project $proj $username";
+	print "$cmd\n";
+	$result = system($cmd);
+	if ($result != 0)
+	{
+	    print "Membership update for project $proj and user $username failed";
+	}
+    }
+    $sth->finish;
+}
+# Now create an XDC in that project if needed
+# First create a config file
+my $path="/var/www/html/data";
+my $config = "$path/config";
+my $admin=$opt{'clusterUser'};
+open(my $oh, '>', $config) or die $!;
+print $oh "
+Host *
+     IdentityFile $path/.ssh/merge_key
+     ServerAliveInterval 30
+     User $admin
+     StrictHostKeyChecking no
+     ProxyCommand ssh -o StrictHostKeyChecking=no -p 2022 -i ~/.ssh/merge_key -W %h:%p $admin\@jump.mod.deterlab.net";
+close($oh);
+my $outtries = 0;
+my $success = 0;
+while ($outtries < $RETRIES && $success == 0)
+{
+    $cmd=$logincmd . "mrg list xdcs | grep xdc.$proj";
+    $result=system($cmd);
+
+    if ($result == 0)
+    {
+	my $retries = 30;
+
+	if ($outtries == 0)
+	{
+	    $retries = 1;
+	}
+	# Try to contact XDC
+	for (my $tries = 0; $tries < $retries; $tries++)
+	{
+	    print "Checking if the XDC is up\n";
+	    $cmd = $logincmd . "sudo -H -u merge $SSH -F $config xdc-$proj \"ls ~\" 2>&1 < /dev/null ";
+	    print "$cmd\n";
+	    $result=system($cmd);
+	    if ($result != 0)
+	    {
+		print "Result $result\n";
+		sleep(1);		
+	    }
+	    else
+	    {
+		$success = 1;
+		last;
+	    }
+	}
+	if ($result != 0)
+	{
+	    print "XDC did not come up within prescribed time\n";
+	    if ($outtries == 0)
+	    {
+		print "Dropping current XDC as non-responsive and recreating\n";
+		$cmd=$logincmd . "mrg delete xdc xdc.$proj";
+		print "$cmd\n";
+		$result = system($cmd);
+		sleep(10);
+		$cmd=$logincmd . "mrg new xdc xdc.$proj";
+		print "$cmd\n";
+		$result = system($cmd);
+	    }
+	}
+
+    }
+    else
+    {
+	# XDC needs to be created
+	print "Creating XDC xdc.$proj\n";
+	$cmd=$logincmd . "mrg new xdc xdc.$proj";
+	print "$cmd\n";
+	$result=system($cmd);
+	if ($result == 0)
+	{
+	    sleep(30);
+	}
+	else
+	{
+	    print "XDC creation has failed\n";
+	    print "DONE";
+	    exit 1;
+	}
+    }
+    $outtries++;
+}
+my $running = 0;
+my $reachable = 0;
+if ($success == 1)
+{
+    $outtries = 0;
+    while ($outtries < $RETRIES)
+    {
+	print "XDC exists and is running, we will now try to contact the VM\n";
+	my $xdccmd="ping -c 1 node";
+	$cmd = $logincmd . "sudo -H -u merge $SSH -F $config xdc-$proj \"$xdccmd\"";
+	print "$cmd\n";
+	open(my $cmdh, " $cmd | ");
+	my $output = "";
+	while (<$cmdh>)
+	{
+	    $output .= $_;
+	}
+	if ($output ne "")
+	{
+	    print "Experiment is running and reachable\n";
+	    last;
+	    $running = 1;
+	    $reachable = 1;
+	}
+	else
+	{
+	    print "Checking if materialization exists\n";
+	    $cmd = $logincmd . "mrg show materialization real.$vmtype.$proj -j";
+	    $output = `$cmd`;
+	    if ($output =~ /\"HighestStatus\"\:\s+\"Success\"/)
+	    {
+		print "Experiment is running, will try to detach and reattach the XDC\n";
+		$running = 1;
+	    }
+	    else
+	    {
+		# Create the VM in that project
+		my $xdccmd="/share/staging/startexp -p $proj -n $vmtype -m /share/EAC/$vmtype/$vmtype.model $vmtype";
+		print "XDC command $xdccmd\n";
+		$cmd = $logincmd . "sudo -H -u merge $SSH -F $config xdc-$proj \"$xdccmd\"";
+		print "$cmd\n";
+		$result=system($cmd);
+		if ($result == 0)
+		{
+		    print "Experiment is now running\n";
+		    $running = 1;
+
+		    # Insert info into DB if needed	    
+		    my $sth = $dbh->prepare(
+			'INSERT INTO VMs(vmid, vmtype, vmdesc, paperId) values (?, ?, ?, ?)')
+			or die "prepare statement failed: $dbh->errstr()";
+		    $sth->bind_param(1, "$vmtype.$proj");
+		    $sth->bind_param(2, $vmtype);
+		    $sth->bind_param(3, $vms{$vmtype});
+		    $sth->bind_param(4, $paperID);
+		    $sth->execute or die "execution failed: $dbh->errstr()";
+		    $sth->finish;
+	       
+		    for (my $i = 2; $i <= $#ARGV; $i++)
+		    {
+			my $id = $ARGV[$i];
+			
+			$sth = $dbh->prepare(
+			    'INSERT INTO VMaccess (vmid, contactId) values (?, ?)')
+			    or die "prepare statement failed: $dbh->errstr()";
+			$sth->bind_param(1, "$vmtype.$proj");
+			$sth->bind_param(2, $id);
+			$sth->execute or die "execution failed: $dbh->errstr()";
+			$sth->finish;
+		    }
+		}
+		else
+		{
+		    print "Start experiment failed, will try again\n";		    
+		}
+	    }	    
+	}
+	if ($running == 1 && $reachable == 0)
+	{
+	    print "Detaching XDC\n";
+	    $cmd = $logincmd . "mrg xdc detach xdc.$proj";
+	    print "$cmd\n";
+	    $result=system($cmd);
+	    print "Reattaching XDC\n";
+	    $cmd = $logincmd . "mrg xdc attach xdc.$proj real.$vmtype.$proj";
+	    print "$cmd\n";
+	    $result=system($cmd);
+	    if ($result == 0)
+	    {
+		print "Will sleep for a minute\n";
+		sleep 60;
+	    }
+	}
+	$outtries++;
+    }
+}
+else
+{
+    print "Failed to instantiate XDC\n";
+}
+print "DONE";

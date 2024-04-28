@@ -3189,7 +3189,7 @@ em.plx {
 /* paper list tables */
 th.pl {
 	vertical-align: bottom;
-	text-align: left;
+	text-align: right;
 	line-height: 1.25;
 	padding: 2px 6px 2px 0;
 	overflow-wrap: break-word;
@@ -3198,6 +3198,13 @@ td.pl {
 	padding-top: 4px;
 	padding-right: 6px;
 }
+
+td.pr {
+	text-align: right;
+	padding-top: 4px;
+	padding-right: 6px;
+}
+
 td.plx, tr.plnx > td.pl {
 	padding-bottom: 4px;
 }
