@@ -1,0 +1,12 @@
+{
+
+    "guacamoleVersion" : "1.5.5",
+
+    "name"      : "HTTP Header Authentication Extension",
+    "namespace" : "header",
+
+    "authProviders" : [
+        "org.apache.guacamole.auth.header.HTTPHeaderAuthenticationProvider"
+    ]
+
+}
