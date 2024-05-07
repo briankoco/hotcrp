@@ -183,7 +183,9 @@ Extensions for using SPHERE
 Conference chair should create SPHERE account and a SPHERE organization and populate
 conf/options.php. Binary mrg should be installed. Also, path to cluster folder should
 be added to /etc/apache2/envvars and apache should be restarted. Need to create config
-file. Need to install at. Create user merge and add www-data to sudoers for ssh.
+file. Need to install at. Create user merge and add www-data to sudoers for ssh. Log in
+as admin and make sure that /var/www/html/data/.ssh/merge_key is chmod a+r so merge user
+can read it.
 
 Database access
 ---------------

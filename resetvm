@@ -36,11 +36,11 @@ my $SSH = "ssh -o StrictHostKeyChecking=no";
 # and a list of IDs that need access
 # like startvm 2 small 4 2 1
 
-my $usage="$0 paper-ID vm-type contact-IDs\n";
+my $usage="$0 paper-ID vm-type vnc-pass contact-IDs\n";
 my %opt = ();
 
 
-if ($#ARGV < 2)
+if ($#ARGV < 3)
 {
     print $usage;
     print "DONE";
@@ -101,6 +101,7 @@ my $sth;
 my %tocreate=();
 my $paperID = $ARGV[0];
 my $vmtype = $ARGV[1];
+my $vncpass = $ARGV[2];
 # Set server
 my $cmd="mrg config set server grpc.mod.deterlab.net";
 system($cmd);
@@ -118,7 +119,7 @@ if ($result != 0)
 }
 # Figure out which cluster accounts we have created before
 my $org = $opt{'clusterOrg'};
-for (my $i = 2; $i <= $#ARGV; $i++)
+for (my $i = 3; $i <= $#ARGV; $i++)
 {
     my $id = $ARGV[$i];
     my $username = $org . "u" .  $ARGV[$i];
@@ -324,9 +325,9 @@ if ($success == 1)
 	if ($output ne "")
 	{
 	    print "Experiment is running and reachable\n";
-	    last;
 	    $running = 1;
 	    $reachable = 1;
+	    last;
 	}
 	else
 	{
@@ -351,28 +352,51 @@ if ($success == 1)
 		    print "Experiment is now running\n";
 		    $running = 1;
 
-		    # Insert info into DB if needed	    
 		    my $sth = $dbh->prepare(
-			'INSERT INTO VMs(vmid, vmtype, vmdesc, paperId) values (?, ?, ?, ?)')
+			'SELECT * FROM VMs WHERE vmid = ?')
 			or die "prepare statement failed: $dbh->errstr()";
-		    $sth->bind_param(1, "$vmtype.$proj");
-		    $sth->bind_param(2, $vmtype);
-		    $sth->bind_param(3, $vms{$vmtype});
-		    $sth->bind_param(4, $paperID);
-		    $sth->execute or die "execution failed: $dbh->errstr()";
-		    $sth->finish;
-	       
-		    for (my $i = 2; $i <= $#ARGV; $i++)
+		    $sth->execute("$vmtype.$proj") or die "execution failed: $dbh->errstr()";
+		    # If VM doesn't exist, insert info
+		    if ($sth->rows == 0)
+		    {
+			# Insert info into DB if needed
+		    	$sth = $dbh->prepare(
+			    'INSERT INTO VMs(vmid, vmtype, VNCpass, vmdesc, paperId) values (?, ?, ?, ?, ?)')
+			    or die "prepare statement failed: $dbh->errstr()";
+			$sth->bind_param(1, "$vmtype.$proj");
+			$sth->bind_param(2, $vmtype);
+			$sth->bind_param(3, $vncpass);	
+			$sth->bind_param(4, $vms{$vmtype});
+			$sth->bind_param(5, $paperID);
+			
+			$sth->execute or die "execution failed: $dbh->errstr()";
+			$sth->finish;
+
+		    }
+		    
+		    for (my $i = 3; $i <= $#ARGV; $i++)
 		    {
 			my $id = $ARGV[$i];
-			
-			$sth = $dbh->prepare(
-			    'INSERT INTO VMaccess (vmid, contactId) values (?, ?)')
+
+			# Check if we need to insert into access
+			my $sth = $dbh->prepare(
+			'SELECT * FROM VMaccess WHERE vmid = ? AND contactID = ?')
 			    or die "prepare statement failed: $dbh->errstr()";
 			$sth->bind_param(1, "$vmtype.$proj");
 			$sth->bind_param(2, $id);
 			$sth->execute or die "execution failed: $dbh->errstr()";
 			$sth->finish;
+			
+			if ($sth->rows == 0)
+			{			    
+			    $sth = $dbh->prepare(
+				'INSERT INTO VMaccess (vmid, contactId) values (?, ?)')
+				or die "prepare statement failed: $dbh->errstr()";
+			    $sth->bind_param(1, "$vmtype.$proj");
+			    $sth->bind_param(2, $id);
+			    $sth->execute or die "execution failed: $dbh->errstr()";
+			    $sth->finish;
+			}
 		    }
 		}
 		else

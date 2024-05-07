@@ -25,11 +25,11 @@ sub randompass()
 # and a list of IDs that need access
 # like startvm 2 small 4 2 1
 
-my $usage="$0 paper-ID vm-type contact-IDs\n";
+my $usage="$0 paper-ID vm-type vnc-pass contact-IDs\n";
 my %opt = ();
 
 
-if ($#ARGV < 2)
+if ($#ARGV < 3)
 {
     print $usage;
     print "DONE";
@@ -84,19 +84,21 @@ while (<$fh>)
 }
 close($fh);
 
+
 my $dsn = "DBI:mysql:database=$opt{'dbName'}";
 my $dbh = DBI->connect($dsn, $opt{'dbUser'}, $opt{'dbPassword'});
 my $sth;
 my %tocreate=();
 my $paperID = $ARGV[0];
 my $vmtype = $ARGV[1];
+my $vncpass = $ARGV[2];
 # Set server
 my $cmd="mrg config set server grpc.mod.deterlab.net";
 system($cmd);
 # Create a project for paper if it does not exist
 my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\" && ";
 my $proj = $opt{'clusterOrg'} . "p" . $paperID;
-my $cmd = $logincmd . "mrg show project $proj";
+$cmd = $logincmd . "mrg show project $proj";
 print "$cmd\n";
 my $result = system($cmd);
 if ($result != 0)
@@ -107,7 +109,7 @@ if ($result != 0)
 }
 # Figure out which cluster accounts we have created before
 my $org = $opt{'clusterOrg'};
-for (my $i = 2; $i <= $#ARGV; $i++)
+for (my $i = 3; $i <= $#ARGV; $i++)
 {
     my $id = $ARGV[$i];
     my $username = $org . "u" .  $ARGV[$i];
@@ -284,28 +286,91 @@ if ($result == 0)
 	# Insert info into DB
 	
 	my $sth = $dbh->prepare(
-	    'INSERT INTO VMs(vmid, vmtype, vmdesc, paperId) values (?, ?, ?, ?)')
+	    'SELECT * FROM VMs WHERE vmid = ?')
 	    or die "prepare statement failed: $dbh->errstr()";
-	$sth->bind_param(1, "$vmtype.$proj");
-	$sth->bind_param(2, $vmtype);
-	$sth->bind_param(3, $vms{$vmtype});
-	$sth->bind_param(4, $paperID);
-	$sth->execute or die "execution failed: $dbh->errstr()";
-	$sth->finish;
-
-	for (my $i = 2; $i <= $#ARGV; $i++)
+	$sth->execute("$vmtype.$proj") or die "execution failed: $dbh->errstr()";
+	# If VM doesn't exist, insert info
+	if ($sth->rows == 0)
+	{	    
+	    $sth = $dbh->prepare(
+	    'INSERT INTO VMs(vmid, vmtype, VNCpass, vmdesc, paperId) values (?, ?, ?, ?, ?)')
+		or die "prepare statement failed: $dbh->errstr()";
+	    $sth->bind_param(1, "$vmtype.$proj");
+	    $sth->bind_param(2, $vmtype);
+	    $sth->bind_param(3, $vncpass);	
+	    $sth->bind_param(4, $vms{$vmtype});
+	    $sth->bind_param(5, $paperID);
+	    $sth->execute or die "execution failed: $dbh->errstr()";
+	    $sth->finish;
+	}
+	for (my $i = 3; $i <= $#ARGV; $i++)
 	{
 	    my $id = $ARGV[$i];
-    
-	    $sth = $dbh->prepare(
-		'INSERT INTO VMaccess (vmid, contactId) values (?, ?)')
+
+	    # Check if we need to insert into access                                                                                           
+	    my $sth = $dbh->prepare(
+		'SELECT * FROM VMaccess WHERE vmid = ? AND contactID = ?')
 		or die "prepare statement failed: $dbh->errstr()";
 	    $sth->bind_param(1, "$vmtype.$proj");
 	    $sth->bind_param(2, $id);
 	    $sth->execute or die "execution failed: $dbh->errstr()";
 	    $sth->finish;
+	    
+	    if ($sth->rows == 0)
+	    {
+		
+		$sth = $dbh->prepare(
+		    'INSERT INTO VMaccess (vmid, contactId) values (?, ?)')
+		    or die "prepare statement failed: $dbh->errstr()";
+		$sth->bind_param(1, "$vmtype.$proj");
+		$sth->bind_param(2, $id);
+		$sth->execute or die "execution failed: $dbh->errstr()";
+		$sth->finish;
+	    }
 	}
-	
     }
 }
-print "DONE";
+# Now we should wait for the node to come up and initialize it
+my $retries = 30;
+my $running = 0;
+my $SSH = "ssh -o StrictHostKeyChecking=no";
+for (my $tries = 0; $tries < $retries; $tries++)
+{
+    print "Checking if node is reachable\n";
+    my $xdccmd="ping -c 1 node";
+    $cmd = $logincmd . "sudo -H -u merge $SSH -F $config xdc-$proj \"$xdccmd\"";
+    print "$cmd\n";
+    open(my $cmdh, " $cmd | ");
+    my $output = "";
+    while (<$cmdh>)
+    {
+	$output .= $_;
+    }
+    if ($output ne "")
+    {
+	print "Experiment is running and reachable\n";
+	$running = 1;
+	last;
+    }
+}
+# Now run runlab
+if ($running)
+{
+    print "Setting up experiment\n";
+    $cmd = $logincmd . "sudo -H -u merge ssh -F $config xdc-$proj \"/share/staging/runlab -f /share/EAC -v $vncpass $vmtype\" 2>&1 < /dev/null ";
+    print "$cmd\n";
+    $result=system($cmd);
+    if ($result != 0)
+    {
+	print "Something failed in experiment setup\n";
+	print "DONE\n";
+	exit 1;
+    }
+    else
+    {
+	print "Experiment has been set up\n";
+	print "DONE";
+	exit 0;
+    }
+}
+

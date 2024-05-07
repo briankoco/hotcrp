@@ -560,17 +560,17 @@ class Home_Page {
 	    	    $vmid = $vm['vmid'];
 		    echo "ID $vmid";
 		    $vmdesc = $vm['vmdesc'];
-                
 		    $vms[$vmid] = array();
                     $vms[$vmid]['type'] = $vm['vmtype'];
                     $vms[$vmid]['paper'] = $vm['paperId'];
-		    $vms[$vmid]['started'] = $vm['create_time'];
-		    $vms[$vmid]['connect'] = "<a href=\"something\">term</a>";
 		    $createhash = random_str(15);
-		    $vms[$vmid]['reset'] = "<a href=\"startvm.php?type=" . $vm['vmtype'] . "&action=reset&pid=" . $vm['paperId'] . "&vmid=" . $vmid . "&createhash=" . $createhash . "\">reset</a>";
-		    $vms[$vmid]['release'] = "<a href=\"something\">release</a>";
-		    
-		    }		 
+		    $vms[$vmid]['pass'] = $vm['VNCpass'];
+
+		    $vms[$vmid]['started'] = $vm['create_time'];
+		    $vms[$vmid]['console'] = "<a href=\"startvm.php?type=" . $vm['vmtype'] . "&action=console&pid=" . $vm['paperId'] . "&vmid=" . $vmid . "&createhash=" . $createhash . "\" target=new>console</a>";
+		    $vms[$vmid]['reset'] = "<a href=\"startvm.php?type=" . $vm['vmtype'] . "&action=reset&pid=" . $vm['paperId'] . "&vmid=" . $vmid . "&createhash=" . $createhash . "\" target=new>reset</a>";
+		    $vms[$vmid]['stop'] = "<a href=\"startvm.php?type=" . $vm['vmtype'] . "&action=stop&pid=" . $vm['paperId'] . "&vmid=" . $vmid . "&createhash=" . $createhash . "\" target=new>stop</a>";		    
+		    }		 	   
         };
         
         if (!$vms) {
@@ -586,6 +586,8 @@ class Home_Page {
                     <th class="pr plh pl_type" data-pc="type">Type
                     </th>
                     <th class="pr plh pl_status pl-status" data-pc="status">Paper #
+                    </th>	  
+                    <th class="pr plh pl_status pl-status" data-pc="status">Console password
                     </th>
                     <th class="pr plh pl_status pl-status" data-pc="status">Created
                     </th>

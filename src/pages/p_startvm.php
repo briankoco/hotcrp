@@ -91,6 +91,10 @@ class StartVm_Page {
 
     function create_vm(Contact $user, Qrequest $qreq) {
 
+    	$createhash=$_GET['createhash'];
+	$vmtype=$_GET['vm-types'];
+	
+	
         if (!($db = $user->conf->contactdb())) {
             $db = $user->conf->dblink;
         }
@@ -129,11 +133,13 @@ class StartVm_Page {
 	    	  $id = $row[0];
 		  array_push($people, $id);
 	    }
-	    $cmd = "bash firestartvm " . $this->pid . " small ";
+	    $cmd = "bash firestartvm " . $this->pid . " " . $vmtype . " " . $createhash . " ";
 	    foreach ($people as $p)
 	    {
 		$cmd = $cmd . " " . $p;
        	    }
+	    echo $cmd;
+
 	    echo '<p><textarea id="startvm_log" name="startvm_log" rows="40" cols="100"></textarea><p>';
 	    echo '<p><input type="submit" value="Close" id="closeButton" style="display: none;" onclick="window.close();">';
 	    $_SESSION["filename"] = $_GET['createhash'];
@@ -149,7 +155,9 @@ class StartVm_Page {
     }
 
     function reset_vm(Contact $user, Qrequest $qreq, $vmid) {
-        echo "In reset vm";
+        $createhash=$_GET['createhash'];	
+	$vmtype=$_GET['type'];
+	
         if (!($db = $user->conf->contactdb())) {
             $db = $user->conf->dblink;
         }
@@ -189,11 +197,12 @@ class StartVm_Page {
 	    	  $id = $row[0];
 		  array_push($people, $id);
 	    }
-	    $cmd = "bash fireresetvm " . $this->pid . " small ";
+	    $cmd = "bash fireresetvm " . $this->pid . " " . $vmtype . " " . $createhash . " ";
 	    foreach ($people as $p)
 	    {
 		$cmd = $cmd . " " . $p;
        	    }
+	    echo $cmd;
 	    echo '<p><textarea id="startvm_log" name="startvm_log" rows="40" cols="100"></textarea><p>';
 	    echo '<p><input type="submit" value="Close" id="closeButton" style="display: none;" onclick="window.close();">';
 	    $_SESSION["filename"] = $_GET['createhash'];
@@ -212,6 +221,10 @@ class StartVm_Page {
             $db = $user->conf->dblink;
         }
         if ($action == 'console') {
+
+
+	  // ssh -F config -L 9998:localhost:9996 xdc-acsac2023p1 -t ssh -L 9996:localhost:5901 -N node
+
             $result = Dbl::qe($db, "SELECT * FROM UserVMs WHERE contactId = ? AND active = 1 AND vmid = ? UNION SELECT UserVMs.* FROM PaperReview,UserVMs WHERE PaperReview.paperId = UserVMs.paperId AND PaperReview.contactId = ? AND UserVMs.reviewerVisible = 1 AND UserVMs.active = 1 AND UserVMs.vmid = ? UNION SELECT UserVMs.* FROM Paper,UserVMs WHERE authorInformation LIKE ".Dbl::utf8ci("'%\t?ls\t%'")." AND Paper.paperId = UserVMs.paperId AND UserVMs.active = 1 AND UserVMs.authorVisible = 1 AND UserVMs.vmid = ? ORDER BY vmid;", $user->contactId, $vmid, $user->contactId, $vmid, $user->email, $vmid);
         } else {
             $result = Dbl::qe($db, "select vmid from UserVMs WHERE vmid = ? and contactId = ? and active = 1;", $vmid, $user->contactId);

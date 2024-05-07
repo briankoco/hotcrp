@@ -643,6 +643,7 @@ CREATE TABLE `VMs` (
   `vmtype` varchar(32) NOT NULL,
   `vmdesc` varchar(256) NOT NULL,
   `paperId` int(11),
+  `VNCpass` varchar(256) NOT NULL,
   `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `delete_time` DATETIME DEFAULT NULL,
   `active` int(11) DEFAULT 1,
