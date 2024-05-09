@@ -154,6 +154,41 @@ class StartVm_Page {
 	    }
     }
 
+    function stop_vm(Contact $user, Qrequest $qreq, $vmid) {
+        $createhash=$_GET['createhash'];	
+	$vmtype=$_GET['type'];
+	
+        if (!($db = $user->conf->contactdb())) {
+            $db = $user->conf->dblink;
+        }
+        $result = Dbl::qe($db, "SELECT * FROM VMaccess WHERE contactId = ? and vmId = ?;", $user->contactId, $vmid);
+        if (!$result->fetch_assoc()) {
+            $qreq->print_header("Access Denied", "createvm");
+
+            echo '<p>You do not have access to this VM.</p>';
+
+            $qreq->print_footer();
+        } else {
+            include_once('src/pve_api/pve_functions.php');
+
+            $qreq->print_header("Stopping the VM", "resetvm");
+
+	    $cmd = "bash firestopvm " . $this->pid . " " . $vmtype;
+	    echo $cmd;
+	    echo '<p><textarea id="startvm_log" name="startvm_log" rows="40" cols="100"></textarea><p>';
+	    echo '<p><input type="submit" value="Close" id="closeButton" style="display: none;" onclick="window.close();">';
+	    $_SESSION["filename"] = $_GET['createhash'];
+
+	    // count the lines exist in the file
+	    $file = 'data/'. $_SESSION["filename"];
+	    $result=exec("touch " . $file);
+	    $cmd = $cmd . " 2>&1 >> " . $file;
+	    $cmd = "echo \"" . $cmd . "\" | at -m now";
+	    $this->get_log($file);
+	    $output = shell_exec($cmd);
+    }
+    }
+    
     function reset_vm(Contact $user, Qrequest $qreq, $vmid) {
         $createhash=$_GET['createhash'];	
 	$vmtype=$_GET['type'];
@@ -215,20 +250,16 @@ class StartVm_Page {
 	    $this->get_log($file);
 	    $output = shell_exec($cmd);
     }
+}
 
-    function call_vm_action(Contact $user, Qrequest $qreq, $vmid, $action) {
+    function console_vm(Contact $user, Qrequest $qreq, $vmid) {
+        $createhash=$_GET['createhash'];	
+	$vmtype=$_GET['type'];
+	
         if (!($db = $user->conf->contactdb())) {
             $db = $user->conf->dblink;
         }
-        if ($action == 'console') {
-
-
-	  // ssh -F config -L 9998:localhost:9996 xdc-acsac2023p1 -t ssh -L 9996:localhost:5901 -N node
-
-            $result = Dbl::qe($db, "SELECT * FROM UserVMs WHERE contactId = ? AND active = 1 AND vmid = ? UNION SELECT UserVMs.* FROM PaperReview,UserVMs WHERE PaperReview.paperId = UserVMs.paperId AND PaperReview.contactId = ? AND UserVMs.reviewerVisible = 1 AND UserVMs.active = 1 AND UserVMs.vmid = ? UNION SELECT UserVMs.* FROM Paper,UserVMs WHERE authorInformation LIKE ".Dbl::utf8ci("'%\t?ls\t%'")." AND Paper.paperId = UserVMs.paperId AND UserVMs.active = 1 AND UserVMs.authorVisible = 1 AND UserVMs.vmid = ? ORDER BY vmid;", $user->contactId, $vmid, $user->contactId, $vmid, $user->email, $vmid);
-        } else {
-            $result = Dbl::qe($db, "select vmid from UserVMs WHERE vmid = ? and contactId = ? and active = 1;", $vmid, $user->contactId);
-        };
+        $result = Dbl::qe($db, "SELECT * FROM VMaccess WHERE contactId = ? and vmId = ?;", $user->contactId, $vmid);
         if (!$result->fetch_assoc()) {
             $qreq->print_header("Access Denied", "createvm");
 
@@ -237,59 +268,26 @@ class StartVm_Page {
             $qreq->print_footer();
         } else {
             include_once('src/pve_api/pve_functions.php');
-	    echo "Starting";
-            $vmconfig = get_vm_connect_config($this->conf);
-            $vmconfig = update_vm_config($vmid, $vmconfig, $db);
-            $vm_status = get_vm_status($vmid, $vmconfig);
-            if ($action == 'start') {
-                $qreq->print_header("Starting VM", "createvm");
-                $action_result = start_vm($vmid, $vmconfig);
-                if ($action_result) {
-                    echo 'Your VM '.$vm_status['data']['name'].' has been started.';
-                } else {
-                    echo '<p><b>Something went wrong!</b> Please contact an administrator.</p>';
-                }
-            } elseif ($action == 'stop') {
-                $qreq->print_header("Stopping VM", "createvm");
-                $action_result = stop_vm($vmid, $vmconfig);
-                if ($action_result) {
-                    echo 'Your VM '.$vm_status['data']['name'].' has been stopped.';
-                } else {
-                    echo '<p><b>Something went wrong!</b> Please contact an administrator.</p>';
-                }
-            } elseif ($action == 'reset') {
-                $qreq->print_header("Resetting VM", "createvm");
-                $action_result = reset_vm($vmid, $vmconfig);
-                if ($action_result) {
-                    echo 'Your VM '.$vm_status['data']['name'].' has been reset.';
-                } else {
-                    echo '<p><b>Something went wrong!</b> Please contact an administrator.</p>';
-                }
-            } elseif ($action == 'delete') {
-                $qreq->print_header("Removing VM", "createvm");
-                $result = Dbl::qe($db, "UPDATE UserVMs SET active = 0 WHERE vmid = ? and contactId = ? AND active = 1;", $vmid, $user->contactId);
-                $action_result = delete_vm($vmid, $vmconfig);
-                if ($action_result) {
-                    echo 'Your VM '.$vm_status['data']['name'].' has been removed.';
-                } else {
-                    echo '<p><b>Something went wrong!</b> Please contact an administrator.</p>';
-                }
-            } elseif ($action == 'console') {
-                $qreq->print_header("VM Console", "createvm");
-                $action_result = get_console_url($vmid, $vmconfig);
-                if ($action_result) {
-                    print($action_result);
-                } else {
-                    echo '<p><b>Something went wrong!</b> Please contact an administrator.</p>';
-                }
-            } else { 
-                $qreq->print_header("Unknown Action", "createvm");
-                echo '<p>You requested an unknown action.</p>';
-                return;
-            }
-        }
-      }
+
+	    $cmd = "bash fireconsolevm " . $this->pid . " " . $vmtype . " " . $user->contactId;
+	    echo $cmd;
+	    
+	    $_SESSION["filename"] = $_GET['createhash'];
+
+	    // count the lines exist in the file
+	    $file = 'data/'. $_SESSION["filename"];
+	    $result=exec("touch " . $file);
+	    $cmd = $cmd . " 2>&1 >> " . $file;
+	    $cmd = "echo \"" . $cmd . "\" | at -m now";
+	    $output = shell_exec($cmd);
+	    $vncport = 6080 + $user->contactId;
+	    $consoleurl = "http://54.183.220.221:" . $vncport . "/vnc.html";
+	    echo "<script> location.href='" . $consoleurl . "'; </script>";
+       	    exit;	 
     }
+   
+   }
+    
     static function go(Contact $user, Qrequest $qreq) {
         if (!$user->email) {
             $user->escape();
@@ -307,13 +305,14 @@ class StartVm_Page {
         if ($qreq->post && $qreq->valid_post()) {
             $op->handle_post_request();
         } elseif (array_key_exists('action', $_GET)) {
-	    echo "Figuring action";
             if ($_GET['action'] == 'create' && array_key_exists('createhash', $_GET)) {
                 $op->create_vm($user, $qreq);
             } elseif ($_GET['action'] == 'reset' && array_key_exists('vmid', $_GET)) {
                 $op->reset_vm($user, $qreq, $_GET['vmid']);
-            } elseif (array_key_exists('action', $_GET) && array_key_exists('vmid', $_GET)) {
-                $op->call_vm_action($user, $qreq, $_GET['vmid'], $_GET['action']);
+	    } elseif ($_GET['action'] == 'console' && array_key_exists('vmid', $_GET)) {
+                $op->console_vm($user, $qreq, $_GET['vmid']);
+	    } elseif ($_GET['action'] == 'stop' && array_key_exists('vmid', $_GET)) {
+                $op->stop_vm($user, $qreq, $_GET['vmid']);
             };
         };
     }

@@ -185,7 +185,7 @@ conf/options.php. Binary mrg should be installed. Also, path to cluster folder s
 be added to /etc/apache2/envvars and apache should be restarted. Need to create config
 file. Need to install at. Create user merge and add www-data to sudoers for ssh. Log in
 as admin and make sure that /var/www/html/data/.ssh/merge_key is chmod a+r so merge user
-can read it.
+can read it. Need to install noVNC as explained https://manojdeshmukh45.medium.com/access-aws-ec2-through-web-browser-6ee9cbf53198
 
 Database access
 ---------------

@@ -1,0 +1,122 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use DBI;
+
+$|=1;
+
+
+sub randompass()
+{
+	my @alphanumeric = ('a'..'z', 'A'..'Z', 0..9,'!','_','-');
+	my @numeric = (0..9);
+	my $randpassword = '';
+
+	while ( length($randpassword) < 8 ) {
+              $randpassword = $randpassword . join '', map $alphanumeric[rand @alphanumeric], 0..(rand @numeric);
+	}
+	print "Rand pass $randpassword\n";
+	$randpassword .= '#';
+	return $randpassword;
+}
+
+# We will just rebuild experiment name and 
+# delete the experiment
+my $SSH = "ssh -o StrictHostKeyChecking=no";
+    
+# Take paper ID, type of VM to stop
+# and build a name
+# like stopvm 2 small 
+
+my $usage="$0 paper-ID vm-type\n";
+my %opt = ();
+
+
+if ($#ARGV < 1)
+{
+    print $usage;
+    print "DONE";
+    exit 1;
+}
+
+# Read info from conf/options.php
+# to get orgName, dbUser, etc.
+my $fh = new IO::File("conf/options.php");
+while (<$fh>)
+{
+    if ($_ =~ /\$Opt/ && $_ =~ /\=/)
+    {
+	my @arr = split /[\[\]\"\=\s+\;]/, $_;	
+	if ($#arr > 3)
+	{
+	    my $intake = 0;
+	    for my $a (@arr)
+	    {
+		if ($a !~ /[\[\]\"\=\s+]/ && $a =~ /[a-zA-Z0-9]/)
+		{
+		    if ($a =~ /^\$Opt/)
+		    {
+			$intake = 1;
+			next;
+		    }
+		    if ($intake =~ /^[0-9]$/ && $intake == 1)
+		    {
+			$opt{$a} = 0;
+			$intake = $a;
+		    }
+		    else
+		    {
+			$opt{$intake} = $a;
+			last;
+		    }
+		}
+	    }
+	}
+    }
+}
+close($fh);
+
+
+my $dsn = "DBI:mysql:database=$opt{'dbName'}";
+my $dbh = DBI->connect($dsn, $opt{'dbUser'}, $opt{'dbPassword'});
+my $sth;
+my %tocreate=();
+my $paperID = $ARGV[0];
+my $vmtype = $ARGV[1];
+# Set server
+my $cmd="mrg config set server grpc.mod.deterlab.net";
+system($cmd);
+# Call stopexp
+my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\" && ";
+my $proj = $opt{'clusterOrg'} . "p" . $paperID;
+my $vmid = $vmtype . "." . $proj;
+$cmd = $logincmd . "mrg delete experiment $vmtype.$proj";
+print "$cmd\n";
+my $result = system($cmd);
+if ($result != 0)
+{
+    print "Experiment could not be stopped";
+    print "DONE";
+    exit 1;
+}
+# Also delete XDC
+$cmd = $logincmd . "mrg delete xdc xdc.$proj";
+print "$cmd\n";
+$result = system($cmd);
+if ($result != 0)
+{
+    print "XDC could not be deleted";
+    print "DONE";
+    exit 1;
+}
+# Remove user access
+$sth = $dbh->prepare(
+	'DELETE FROM VMs where vmid = ?')
+	or die "prepare statement failed: $dbh->errstr()";
+$sth->execute($vmid) or die "execution failed: $dbh->errstr()";
+$sth = $dbh->prepare(
+	'DELETE FROM VMaccess where vmid = ?')
+	or die "prepare statement failed: $dbh->errstr()";
+$sth->execute($vmid) or die "execution failed: $dbh->errstr()";
+print "DONE";

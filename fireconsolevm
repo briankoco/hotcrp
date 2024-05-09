@@ -1,0 +1,2 @@
+export HOME="/var/www/html/data"
+nohup perl consolevm "$@" &

@@ -1,0 +1,150 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use DBI;
+
+$|=1;
+
+
+sub randompass()
+{
+	my @alphanumeric = ('a'..'z', 'A'..'Z', 0..9,'!','_','-');
+	my @numeric = (0..9);
+	my $randpassword = '';
+
+	while ( length($randpassword) < 8 ) {
+              $randpassword = $randpassword . join '', map $alphanumeric[rand @alphanumeric], 0..(rand @numeric);
+	}
+	print "Rand pass $randpassword\n";
+	$randpassword .= '#';
+	return $randpassword;
+}
+
+# We will just rebuild experiment name and 
+# start SSH tunnel and novnc proxy
+my $SSH = "ssh -o StrictHostKeyChecking=no";
+    
+# Take paper ID, type of VM to stop and user ID
+# and set up SSH tunnel and novnc proxy
+
+my $usage="$0 paper-ID vm-type user-ID\n";
+my %opt = ();
+
+
+if ($#ARGV < 2)
+{
+    print $usage;
+    print "DONE";
+    exit 1;
+}
+
+# Read info from conf/options.php
+# to get orgName, dbUser, etc.
+my $fh = new IO::File("conf/options.php");
+while (<$fh>)
+{
+    if ($_ =~ /\$Opt/ && $_ =~ /\=/)
+    {
+	my @arr = split /[\[\]\"\=\s+\;]/, $_;	
+	if ($#arr > 3)
+	{
+	    my $intake = 0;
+	    for my $a (@arr)
+	    {
+		if ($a !~ /[\[\]\"\=\s+]/ && $a =~ /[a-zA-Z0-9]/)
+		{
+		    if ($a =~ /^\$Opt/)
+		    {
+			$intake = 1;
+			next;
+		    }
+		    if ($intake =~ /^[0-9]$/ && $intake == 1)
+		    {
+			$opt{$a} = 0;
+			$intake = $a;
+		    }
+		    else
+		    {
+			$opt{$intake} = $a;
+			last;
+		    }
+		}
+	    }
+	}
+    }
+}
+close($fh);
+
+
+my $dsn = "DBI:mysql:database=$opt{'dbName'}";
+my $dbh = DBI->connect($dsn, $opt{'dbUser'}, $opt{'dbPassword'});
+my $sth;
+my $paperID = $ARGV[0];
+my $vmtype = $ARGV[1];
+my $userID = $ARGV[2];
+# Set server
+my $cmd="mrg config set server grpc.mod.deterlab.net";
+system($cmd);
+my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\" && ";
+my $proj = $opt{'clusterOrg'} . "p" . $paperID;
+my $vmid = $vmtype . "." . $proj;
+# Calculate which terminal ID should user have
+$sth = $dbh->prepare(
+	'SELECT contactID FROM VMaccess where vmid = ? order by contactID asc ')
+	or die "prepare statement failed: $dbh->errstr()";
+$sth->execute($vmid) or die "execution failed: $dbh->errstr()";
+my $i=0;
+my $found=0;
+while (my $ref = $sth->fetchrow_hashref()) {
+    my $ID = $ref->{'contactID'};
+    print "My id $userID current $ID i $i\n";
+    if ($ID == $userID)
+    {
+	$found = 1;
+	last;
+    }
+    $i++;
+}
+if ($found == 0)
+{
+    print "This user has no access to the given VM\n";
+    print "DONE";
+    exit 1;
+}
+my $termID = $i;
+my $vncport = $termID + 5900;
+my $port = 10000 + $userID;
+my $path="/var/www/html/data";
+my $config = "$path/config";
+my $output = `ps axuw | grep ssh | grep $port | wc | awk '{print \$1}'`;
+if ($output <= 1)
+{
+    print "Creating new SSH tunnel";
+    $cmd = $logincmd . "sudo -H -u merge ssh -F $config -L " . $port . ":localhost:" . $port . " xdc-$proj -t ssh -L " . $port . ":localhost:" . $vncport . " -N node 2>&1 &";
+    print $cmd;
+    my $result=system($cmd);
+    if ($result != 0)
+    {
+	print "SSH tunnel creation failed\n";
+	print "DONE";
+	exit 1;
+    }
+}
+$output = `ps axuw | grep novnc_proxy | grep $port | wc | awk '{print \$1}'`;
+if ($output <= 1)
+{
+    print "Starting novnc proxy";
+    my $proxyport = 6080 + $userID;
+    $cmd = "/var/noVNC/utils/novnc_proxy --vnc localhost:" . $port . " --listen $proxyport 2>&1 &";
+    print $cmd;
+    my $result=system($cmd);
+    if ($result != 0)
+    {
+	print "novnc_proxy failed\n";
+	print "DONE";
+	exit 1;
+    }
+}
+print "User $userID term ID $termID\n";
+print "DONE";
