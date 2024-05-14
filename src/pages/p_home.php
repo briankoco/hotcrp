@@ -543,8 +543,16 @@ class Home_Page {
         }
         $result = Dbl::qe($db, "select contactId from ContactInfo where email = ? and not disabled order by email asc limit 1", $email);
         $vms = array();
-        
+
+             
         foreach ($result as $cidkey => $cid) {
+	   	$spheredata = Dbl::qe($db, "SELECT username, password FROM ClusterUsers where contactID = ?;", $cid['contactId']);
+	
+  	foreach ($spheredata as $sph){
+ 		$suid = $sph['username'];
+		$spass = $sph['password'];
+
+	   }
             if ($user->is_admin()) {
                 $vmdata = Dbl::qe($db, "select * from VMs where active = 1");
 
@@ -554,7 +562,7 @@ class Home_Page {
             foreach ($vmdata as $vm){
 	    	    foreach ($vm as $key => $val)
 		    {
-		    echo "Key $key val $val ";
+    		        echo "Key $key val $val ";
 		    
 		    }
 	    	    $vmid = $vm['vmid'];
@@ -565,6 +573,8 @@ class Home_Page {
                     $vms[$vmid]['paper'] = $vm['paperId'];
 		    $createhash = random_str(15);
 		    $vms[$vmid]['pass'] = $vm['VNCpass'];
+		    $vms[$vmid]['suid'] = $suid;
+		    $vms[$vmid]['spass'] = $spass;		    
 
 		    $vms[$vmid]['started'] = $vm['create_time'];
 		    $vms[$vmid]['console'] = "<a href=\"startvm.php?type=" . $vm['vmtype'] . "&action=console&pid=" . $vm['paperId'] . "&vmid=" . $vmid . "&createhash=" . $createhash . "\" target=new>console</a>";
@@ -589,13 +599,17 @@ class Home_Page {
                     </th>	  
                     <th class="pr plh pl_status pl-status" data-pc="status">Console password
                     </th>
+		    <th class="pr plh pl_status pl-status" data-pc="status">SPHERE username
+                    </th>
+                    <th class="pr plh pl_status pl-status" data-pc="status">SPHERE password
+                    </th>
                     <th class="pr plh pl_status pl-status" data-pc="status">Created
                     </th>
-                    <th class="pr plh pl_status pl-status" data-pc="status">Connect
+                    <th class="pr plh pl_status pl-status" data-pc="status">Console
                     </th>
-		    <th class="pr plh pl_status pl-status" data-pc="status">Jiggle
+		    <th class="pr plh pl_status pl-status" data-pc="status">Poke
                     </th>
-		    <th class="pr plh pl_status pl-status" data-pc="status">Release
+		    <th class="pr plh pl_status pl-status" data-pc="status">Stop
                     </th>
                     </tr>';
         echo ' </thead>';

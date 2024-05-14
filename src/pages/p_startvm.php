@@ -278,7 +278,6 @@ class StartVm_Page {
 	    $file = 'data/'. $_SESSION["filename"];
 	    $result=exec("touch " . $file);
 	    $cmd = $cmd . " 2>&1 >> " . $file;
-	    $cmd = "echo \"" . $cmd . "\" | at -m now";
 	    $output = shell_exec($cmd);
 	    $vncport = 6080 + $user->contactId;
 	    $consoleurl = "http://54.183.220.221:" . $vncport . "/vnc.html";
