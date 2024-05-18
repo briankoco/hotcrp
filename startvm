@@ -103,22 +103,17 @@ my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPas
 $cmd = $logincmd;
 system($cmd);
 $cmd = "cp $path/data/.ssh/merge_key /tmp/ 2>&1";
-print "$cmd\n";
 my $output=`$cmd`;
-print "Output $output";
-$cmd = "chmod a+r /tmp/merge_key 2>&1";
-print "$cmd\n";
 $output=`$cmd`;
-print "Output $output";
 # Create a project for paper if it does not exist
 my $proj = $opt{'clusterOrg'} . "p" . $paperID;
 $cmd = $logincmd . " && mrg show project $proj";
-print "$cmd\n";
+print "Checking if project $proj exists\n";
 my $result = system($cmd);
 if ($result != 0)
 {
     $cmd = $logincmd . " && mrg new project $proj \"" . $opt{'clusterOrg'} . " AE for paper " . $paperID . "\" --category Research -o " . $opt{'clusterOrg'};
-    print "$cmd\n";
+    print "Creating new project $proj\n";
     $result = system($cmd);
 }
 # Figure out which cluster accounts we have created before
@@ -161,24 +156,22 @@ for (my $i = 3; $i <= $#ARGV; $i++)
 	    my $password = randompass();
 	    # Check if the user already exists, and if it does unregister them since we need to generate a new password
 	    my $cmd = $logincmd . " && mrg show user $username";
-	    print "$cmd\n";
+	    print "Checking if user $username exists\n";
 	    my $result = system($cmd);
 	    if ($result == 0)
 	    {
 		# Assume that this will work
 		$cmd = $logincmd . " && mrg delete user $username && mrg unregister $username";
-		print "$cmd\n";
 		system($cmd);
 		print "Existing user $username has been deleted, and new user will be created";
 	    }
 	    $cmd = "mrg register $username $email \"$firstName $lastName\" \"$affiliation\" Researcher \"$country\" $usstate -p \"$password\" -o $org";
-	    print "$cmd\n";
+	    print "Registering new user\n";
 	    # Execute the command in new process
 	    $result = system($cmd);
 	    if ($result == 0)
 	    {
 		$cmd =  $logincmd . " && mrg membership confirm organization user " . $opt{'clusterOrg'} . " " . $username;
-		print "$cmd\n";
 		$result = system($cmd);
 		if ($result == 0)
 		{
@@ -193,7 +186,6 @@ for (my $i = 3; $i <= $#ARGV; $i++)
 		    $sth1->finish;
 		    # Join user to the project
 		    $cmd = $logincmd . " && mrg update member project $proj $username";
-		    print "$cmd\n";
 		    $result = system($cmd);
 		    if ($result != 0)
 		    {
@@ -216,7 +208,6 @@ for (my $i = 3; $i <= $#ARGV; $i++)
     {
 	# Join user to the project
 	$cmd = $logincmd . " && mrg update member project $proj $username";
-	print "$cmd\n";
 	$result = system($cmd);
 	if ($result != 0)
 	{
@@ -240,7 +231,8 @@ Host *
 close($oh);
 # Create similar config for merge user
 my $mconfig = "/tmp/config";
-open(my $oh, '>', $mconfig) or die $!;
+my $oh;
+open($oh, '>', $mconfig) or die $!;
 print $oh "                                                                                                                                                                                                                           
 Host *	
     IdentityFile /tmp/merge_key
@@ -257,7 +249,6 @@ if ($result != 0)
     # XDC needs to be created
     print "Creating XDC xdc.$proj\n";
     $cmd=$logincmd . " && mrg new xdc xdc.$proj";
-    print "$cmd\n";
     $result=system($cmd);
     
     if ($result == 0)
@@ -269,7 +260,6 @@ if ($result != 0)
 	{
 	    print "Checking if the XDC is up\n";
 	    $cmd = $logincmd . " && sudo -H -u merge $SSH -F $mconfig xdc-$proj \"ls ~\" 2>&1 < /dev/null ";
-	    print "$cmd\n";
 	    $result=system($cmd);
 	    if ($result != 0)
 	    {
@@ -306,7 +296,7 @@ if ($result == 0)
     my $xdccmd="/share/staging/startexp -p $proj -n $vmtype -m /share/EAC/$vmtype/$vmtype.model $vmtype";
     print "XDC command $xdccmd\n";
     $cmd = $logincmd . " && sudo -H -u merge $SSH -F $mconfig xdc-$proj \"$xdccmd\"";
-    print "$cmd\n";
+
     $result=system($cmd);
     if ($result == 0)
     {
@@ -357,6 +347,12 @@ if ($result == 0)
 	    }
 	}
     }
+    else
+    {
+	print "Experiment failed to start\n";
+	print "DONE\n";
+	exit 1;
+    }
 }
 # Now we should wait for the node to come up and initialize it
 my $retries = 30;
@@ -366,7 +362,6 @@ for (my $tries = 0; $tries < $retries; $tries++)
     print "Checking if node is reachable\n";
     my $xdccmd="ping -c 1 node";
     $cmd = $logincmd . " && sudo -H -u merge $SSH -F $mconfig xdc-$proj \"$xdccmd\"";
-    print "$cmd\n";
     open(my $cmdh, " $cmd | ");
     my $output = "";
     while (<$cmdh>)
@@ -385,7 +380,6 @@ if ($running)
 {
     print "Setting up experiment\n";
     $cmd = $logincmd . " && sudo -H -u merge $SSH -F $mconfig xdc-$proj \"/share/staging/runlab -f /share/EAC -v $vncpass $vmtype\" 2>&1 < /dev/null ";
-    print "$cmd\n";
     $result=system($cmd);
     if ($result != 0)
     {

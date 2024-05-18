@@ -43,6 +43,10 @@ function handle_request($nav) {
             Multiconference::fail($qreq, 403, ["link" => true], $user->conf->_i("account_disabled"));
         } else {
             $pc->set_root($pagej->group);
+	    $myfile = fopen("newfile.txt", "a") or die("Unable to open file!");
+	    $txt = "Getting " . $nav->page;
+	    fwrite($myfile, $txt);
+	    fclose($myfile);
             handle_request_components($user, $qreq, $pagej, $pc);
             $pc->print_body_members($pagej->group);
         }

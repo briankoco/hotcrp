@@ -170,6 +170,7 @@ class PaperTable {
         $t = '<header id="h-page" class="header-page-submission"><h1 class="paptitle';
 
         if (!$paperTable) {
+            echo "Paper id " . $pid . " qreq " . $qreq->paperId;
             if (($pid = $qreq->paperId) && ctype_digit($pid)) {
                 $title = "#{$pid}";
             } else {
@@ -2876,7 +2877,7 @@ class PaperTable {
     	// Start VM option
 	include_once('src/pve_api/pve_functions.php');
 
-	echo '    <form id=vmcreate-form action="../startvm.php" method="get" target="new">';
+	echo '    <form id=vmcreate-form action="' . $this->conf->hoturl("startvm.php") . '"  method="get" target="new">';
         echo '        <input type="hidden" name="action" value="create">';
         echo '        <input type="hidden" name="createhash" value="'.random_str(15).'">';
 	echo '	      <input type="hidden" name="pid" value="' . $this->prow->paperId . '">';

@@ -78,6 +78,11 @@ class NavigationState {
         // $nav->query: easy-urldecoded portion including and after [?#];
         // $uri: encoded portion preceding $query
         $qpos = strpos($nav->request_uri, "?");
+        $myfile = fopen("newfile.txt", "a") or die("Unable to open file!");
+        $txt = "Nav " . $nav->request_uri . "\n";
+        fwrite($myfile, $txt);
+        fclose($myfile);
+
         if (($hpos = strpos($nav->request_uri, "#")) !== false) {
             $qpos = $qpos === false ? $hpos : min($qpos, $hpos);
         }
