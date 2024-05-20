@@ -280,7 +280,7 @@ class StartVm_Page {
 	    $cmd = $cmd . " 2>&1 >> " . $file;
 	    $output = shell_exec($cmd);
 	    $vncport = 6080 + $user->contactId + 50*$this->pid;
-	    $consoleurl = "http://54.183.220.221:" . $vncport . "/vnc.html";
+	    $consoleurl = "http://" . $_SERVER['HTTP_HOST'] . ":" . $vncport . "/vnc.html";
 	    echo "<script> child=window.open('" . $consoleurl . "'); child.onunload = function(){ console.log('Child window closed'); };</script>";
        	    exit;	 
     }
