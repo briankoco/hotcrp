@@ -16,7 +16,6 @@ sub randompass()
 	while ( length($randpassword) < 8 ) {
               $randpassword = $randpassword . join '', map $alphanumeric[rand @alphanumeric], 0..(rand @numeric);
 	}
-	print "Rand pass $randpassword\n";
 	$randpassword .= '#';
 	return $randpassword;
 }
@@ -92,7 +91,6 @@ my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPas
 my $proj = $opt{'clusterOrg'} . "p" . $paperID;
 my $vmid = $vmtype . "." . $proj;
 $cmd = $logincmd . "mrg delete experiment $vmtype.$proj";
-print "$cmd\n";
 my $result = system($cmd);
 if ($result != 0)
 {
@@ -102,7 +100,6 @@ if ($result != 0)
 }
 # Also delete XDC
 $cmd = $logincmd . "mrg delete xdc xdc.$proj";
-print "$cmd\n";
 $result = system($cmd);
 if ($result != 0)
 {

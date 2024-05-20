@@ -16,7 +16,6 @@ sub randompass()
 	while ( length($randpassword) < 8 ) {
               $randpassword = $randpassword . join '', map $alphanumeric[rand @alphanumeric], 0..(rand @numeric);
 	}
-	print "Rand pass $randpassword\n";
 	$randpassword .= '#';
 	return $randpassword;
 }
@@ -113,19 +112,22 @@ if ($found == 0)
 }
 my $termID = $i;
 my $vncport = $termID + 5900;
-my $port = 10000 + $userID;
+my $port = 10000 + $userID + 50*$paperID;
+my $proxyport = 6080 + $userID + 50*$paperID;
+
+print "Port $port proxyport $proxyport\n";
 
 my $path=$opt{'webpath'};
-my $config = "$path/data/config";
+my $config = "$path/config";
 my $admin=$opt{'clusterUser'};
 my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\"";
 $cmd = $logincmd;
 system($cmd);
-$cmd = "cp $path/data/.ssh/merge_key /tmp/ 2>&1";
+$cmd = "cp $path/.ssh/merge_key /tmp/ 2>&1";
 my $output=`$cmd`;
 $cmd = "chmod a+r /tmp/merge_key 2>&1";
 $output=`$cmd`;
-open(my $oh, '>', $config) or die $!;
+open(my $oh, '>', $config); # or die $!;
 print $oh "
 Host *
      IdentityFile $path/.ssh/merge_key
@@ -136,7 +138,7 @@ Host *
 close($oh);
 # Create similar config for merge user
 my $mconfig = "/tmp/config";
-open(my $oh, '>', $mconfig) or die $!;
+open($oh, '>', $mconfig); # or die $!;
 print $oh "                                                                                                                                                                                                                           
 Host *	
     IdentityFile /tmp/merge_key
@@ -146,15 +148,17 @@ Host *
     UserKnownHostsFile=/dev/null
     ProxyCommand ssh -o StrictHostKeyChecking=no -p 2022 -i /tmp/merge_key -W %h:%p $admin\@jump.mod.deterlab.net";
 close($oh);
-my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\" && ";
-
-my $output = `ps axuw | grep ssh | grep $port | wc | awk '{print \$1}'`;
+$logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\" && ";
+$output = `ps axuw | grep ssh | grep "localhost:$port " | wc | awk '{print \$1}'`;
 if ($output <= 1)
 {
+    # Delete known_hosts on XDC just in case
+    my $xdccmd = "rm /home/" . $opt{'clusterUser'} . ".ssh/known_hosts";
+    $cmd = $logincmd . "sudo -H -u merge ssh -F $mconfig xdc-$proj \"$xdccmd\"";
+    my $result=system($cmd);
     print "Creating new SSH tunnel";
     $cmd = $logincmd . "sudo -H -u merge ssh -F $mconfig -L " . $port . ":localhost:" . $port . " xdc-$proj -t ssh -L " . $port . ":localhost:" . $vncport . " -N node 2>&1 &";
-    print $cmd;
-    my $result=system($cmd);
+    $result=system($cmd);
     if ($result != 0)
     {
 	print "SSH tunnel creation failed\n";
@@ -162,13 +166,11 @@ if ($output <= 1)
 	exit 1;
     }
 }
-$output = `ps axuw | grep novnc_proxy | grep $port | wc | awk '{print \$1}'`;
+$output = `ps axuw | grep novnc_proxy | grep "localhost:$port " | wc | awk '{print \$1}'`;
 if ($output <= 1)
 {
     print "Starting novnc proxy";
-    my $proxyport = 6080 + $userID;
     $cmd = "/var/noVNC/utils/novnc_proxy --vnc localhost:" . $port . " --listen $proxyport 2>&1 &";
-    print $cmd;
     my $result=system($cmd);
     if ($result != 0)
     {

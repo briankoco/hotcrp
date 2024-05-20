@@ -560,11 +560,6 @@ class Home_Page {
                 $vmdata = Dbl::qe($db, "SELECT * FROM VMs as v left join VMaccess as vma on v.vmId = vma.vmId  WHERE contactId = ? AND active = 1 ORDER BY v.vmid;", $cid['contactId']);
             }
             foreach ($vmdata as $vm){
-	    	    foreach ($vm as $key => $val)
-		    {
-    		        echo "Key $key val $val ";
-		    
-		    }
 	    	    $vmid = $vm['vmid'];
 		    echo "ID $vmid";
 		    $vmdesc = $vm['vmdesc'];

@@ -16,7 +16,6 @@ sub randompass()
 	while ( length($randpassword) < 8 ) {
               $randpassword = $randpassword . join '', map $alphanumeric[rand @alphanumeric], 0..(rand @numeric);
 	}
-	print "Rand pass $randpassword\n";
 	$randpassword .= '#';
 	return $randpassword;
 }
@@ -102,8 +101,9 @@ my $path=$opt{'webpath'};
 my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\"";
 $cmd = $logincmd;
 system($cmd);
-$cmd = "cp $path/data/.ssh/merge_key /tmp/ 2>&1";
+$cmd = "cp $path/.ssh/merge_key /tmp/ 2>&1";
 my $output=`$cmd`;
+$cmd = "chmod g+r /tmp/merge_key 2>&1";
 $output=`$cmd`;
 # Create a project for paper if it does not exist
 my $proj = $opt{'clusterOrg'} . "p" . $paperID;
@@ -218,7 +218,7 @@ for (my $i = 3; $i <= $#ARGV; $i++)
 }
 # Now create an XDC in that project if needed
 # First create a config file
-my $config = "$path/data/config";
+my $config = "$path/config";
 my $admin=$opt{'clusterUser'};
 open(my $oh, '>', $config) or die $!;
 print $oh "

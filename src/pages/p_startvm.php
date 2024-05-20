@@ -279,9 +279,9 @@ class StartVm_Page {
 	    $result=exec("touch " . $file);
 	    $cmd = $cmd . " 2>&1 >> " . $file;
 	    $output = shell_exec($cmd);
-	    $vncport = 6080 + $user->contactId;
+	    $vncport = 6080 + $user->contactId + 50*$this->pid;
 	    $consoleurl = "http://54.183.220.221:" . $vncport . "/vnc.html";
-	    echo "<script> location.href='" . $consoleurl . "'; </script>";
+	    echo "<script> child=window.open('" . $consoleurl . "'); child.onunload = function(){ console.log('Child window closed'); };</script>";
        	    exit;	 
     }
    

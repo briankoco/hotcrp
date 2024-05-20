@@ -1,2 +1,2 @@
-export HOME="/var/www/html/data"
+export HOME="/tmp/secret"
 nohup perl resetvm "$@" &
