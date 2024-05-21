@@ -246,3 +246,7 @@ $Opt["smartScoreCompare"] = true;
 //
 // clusterPass	     Password for HotCRP admin on the cluster
 //
+// webpath	     Path for where secrets should be stored. Must be
+//  		     accessible by web server process. For example Apache
+//		     can only write to /var/www/html. You can create a new
+//		     folder there with 600 permissions and chown it to www-data
