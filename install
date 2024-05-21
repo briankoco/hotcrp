@@ -1,9 +1,13 @@
 apt update
-apt install -y emacs apache2 php mariadb-server php-fpm php-intl exim4-daemon-heavy php-mysql php-mbstring php-curl
+apt install -y emacs apache2 php mariadb-server php-fpm php-intl exim4-daemon-heavy php-mysql php-mbstring php-curl rpm
 sudo a2enmod php8.1
 sudo service apache2 restart
 sudo mysql << eof
 CREATE USER 'test'@localhost IDENTIFIED BY 'testpass';
 GRANT ALL PRIVILEGES ON *.* TO 'test'@localhost IDENTIFIED BY 'testpass';
 eof
+curl -L --output /tmp/mrg.rpm https://gitlab.com/mergetb/portal/cli/-/releases/v1.2.0/downloads/mrg_1.2.0_linux_amd64.rpm
+sudo rpm -i /tmp/mrg.rpm
+git clone https://github.com/novnc/noVNC
+sudo cp noVNC/utils/novnc_proxy /usr/local/bin
 bash lib/createdb.sh
