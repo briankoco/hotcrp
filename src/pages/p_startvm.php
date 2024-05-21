@@ -34,15 +34,13 @@ class StartVm_Page {
 
     // this is useful for post stuff
     function handle_post_request() {
-        if ($this->qreq->action == 'updatevm' ) {
-            $this->update_vm($this->user, $this->qreq, $this->qreq->vmid, $this->qreq->paperid, $this->qreq->rev_access, $this->qreq->aut_access);
-        } elseif ($this->qreq->action == 'start' ) {
+        if ($this->qreq->action == 'create' ) {
             $this->call_vm_action($this->user, $this->qreq, $this->qreq->vmid, $this->qreq->action);
         } elseif ($this->qreq->action == 'stop' ) {
             $this->call_vm_action($this->user, $this->qreq, $this->qreq->vmid, $this->qreq->action);
         } elseif ($this->qreq->action == 'reset' ) {
             $this->call_vm_action($this->user, $this->qreq, $this->qreq->vmid, $this->qreq->action);
-        } elseif ($this->qreq->action == 'delete' ) {
+        } elseif ($this->qreq->action == 'console' ) {
             $this->call_vm_action($this->user, $this->qreq, $this->qreq->vmid, $this->qreq->action);
         };
     }
@@ -61,34 +59,6 @@ class StartVm_Page {
         $this->qreq->print_footer();
     }
     
-    function update_vm(Contact $user, Qrequest $qreq, $vmid, $paperid, $rev_access, $aut_access ) {
-        
-        if ($paperid == '-') {
-            $paperid = NULL;
-            $rev_access = 'false';
-            $aut_access = 'false';
-        };
-        if (!($db = $user->conf->contactdb())) {
-            $db = $user->conf->dblink;
-        }
-        $result = Dbl::qe($db, "select vmid from UserVMs WHERE vmid = ? and contactId = ? and active = 1;", $vmid, $user->contactId);
-        if (!$result->fetch_assoc()) {
-            echo '<p>You do not have access to this VM.</p>';
-        } else {
-            if ($rev_access == 'true') {
-                $rev_access = 1;
-            } else {
-                $rev_access = 0;
-            };
-            if ($aut_access == 'true') {
-                $aut_access = 1;
-            } else {
-                $aut_access = 0;
-            };
-            $update = Dbl::qe($db, "UPDATE UserVMs SET paperId=?, reviewerVisible=?, authorVisible=? WHERE vmid = ? and contactId = ? and active = 1;", $paperid, $rev_access, $aut_access, $vmid, $user->contactId);
-        };
-    }
-
     function create_vm(Contact $user, Qrequest $qreq) {
 
     	$createhash=$_GET['createhash'];
@@ -98,15 +68,7 @@ class StartVm_Page {
         if (!($db = $user->conf->contactdb())) {
             $db = $user->conf->dblink;
         }
-        $result = Dbl::qe($db, "select vmid from UserVMs WHERE createhash = ?;", $_GET['createhash']);
-        if ($result->fetch_assoc()) {
-            $qreq->print_header("VM Already Created", "createvm");
-
-            echo '<p>You already created a VM with this request; You might have reloaded the page. Please go back to the homepage and select the type of VM to create.</p>';
-
-            $qreq->print_footer();
-        } else {
-            include_once('src/pve_api/pve_functions.php');
+      	      include_once('src/pve_api/pve_functions.php');
             $qreq->print_header("Creating a New VM", "createvm");
 
 	    $people=[];
@@ -151,7 +113,7 @@ class StartVm_Page {
 	    $cmd = "echo \"" . $cmd . "\" | at -m now";
 	    $this->get_log($file);
 	    $output = shell_exec($cmd);
-	    }
+	    
     }
 
     function stop_vm(Contact $user, Qrequest $qreq, $vmid) {

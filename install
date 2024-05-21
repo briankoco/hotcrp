@@ -1,13 +1,22 @@
-apt update
-apt install -y emacs apache2 php mariadb-server php-fpm php-intl exim4-daemon-heavy php-mysql php-mbstring php-curl rpm
-sudo a2enmod php8.1
+sudo apt update
+sudo apt install -y emacs apache2 php mariadb-server mariadb-client-core-10.6 php-fpm php-intl exim4-daemon-heavy php-mysql php-mbstring php-curl rpm at
+sudo a2enmod php8.1 
 sudo service apache2 restart
-sudo mysql << eof
-CREATE USER 'test'@localhost IDENTIFIED BY 'testpass';
-GRANT ALL PRIVILEGES ON *.* TO 'test'@localhost IDENTIFIED BY 'testpass';
-eof
+#sudo mysql << eof
+#CREATE USER 'test'@localhost IDENTIFIED BY 'testpass';
+#GRANT ALL PRIVILEGES ON *.* TO 'test'@localhost IDENTIFIED BY 'testpass';
+#eof
 curl -L --output /tmp/mrg.rpm https://gitlab.com/mergetb/portal/cli/-/releases/v1.2.0/downloads/mrg_1.2.0_linux_amd64.rpm
 sudo rpm -i /tmp/mrg.rpm
 git clone https://github.com/novnc/noVNC
 sudo cp noVNC/utils/novnc_proxy /usr/local/bin
-bash lib/createdb.sh
+sudo useradd -m -s /bin/bash "merge"
+echo "merge:lskd*3ksldk2d" | sudo chpasswd
+sudo chown -R "merge:merge" "/home/merge"
+sudo chmod 700 "/home/merge"
+sudo usermod -aG www-data merge
+echo "www-data    ALL=(merge) NOPASSWD: /usr/bin/ssh" | sudo EDITOR='tee -a' visudo
+sudo -u www-data mkdir /var/www/html/data
+sudo sed -i 's/www-data//g' /etc/at.deny
+sudo atd restart
+sudo bash lib/createdb.sh

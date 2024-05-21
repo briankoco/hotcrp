@@ -1,3 +1,2 @@
 cp -r * /var/www/html
 chown -R www-data:www-data /var/www/html
-chmod -R a+rx /var/www/html
