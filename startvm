@@ -9,15 +9,18 @@ $|=1;
 
 sub randompass()
 {
-	my @alphanumeric = ('a'..'z', 'A'..'Z', 0..9,'!','_','-');
-	my @numeric = (0..9);
-	my $randpassword = '';
+    my @letters = ('a'..'z');
+    my @special = ('!','_','-','#','@');
+    my @numeric = (0..9);
+    my $randpassword = '';
 
-	while ( length($randpassword) < 8 ) {
-              $randpassword = $randpassword . join '', map $alphanumeric[rand @alphanumeric], 0..(rand @numeric);
-	}
-	$randpassword .= '#';
-	return $randpassword;
+    while ( length($randpassword) < 12 ) {
+        $randpassword = $randpassword . join '', $letters[rand @letters];
+	$randpassword = $randpassword . join '', uc($letters[rand @letters]);
+        $randpassword = $randpassword . join '', $numeric[rand @numeric];
+    }
+    $randpassword = $randpassword . join '', $special[rand @special];
+    return $randpassword;
 }
 
 # Take paper ID, type of VM to create
@@ -165,7 +168,7 @@ for (my $i = 3; $i <= $#ARGV; $i++)
 		system($cmd);
 		print "Existing user $username has been deleted, and new user will be created";
 	    }
-	    $cmd = "mrg register $username $email \"$firstName $lastName\" \"$affiliation\" Researcher \"$country\" $usstate -p \"$password\" -o $org";
+	    $cmd = "mrg sudo -u $username register $username $email \"$firstName $lastName\" \"$affiliation\" Researcher \"$country\" $usstate -p \"$password\" -o $org";
 	    print "Registering new user\n";
 	    # Execute the command in new process
 	    $result = system($cmd);

@@ -153,11 +153,13 @@ $output = `ps axuw | grep ssh | grep "localhost:$port " | wc | awk '{print \$1}'
 if ($output <= 1)
 {
     # Delete known_hosts on XDC just in case
-    my $xdccmd = "rm /home/" . $opt{'clusterUser'} . ".ssh/known_hosts";
+    my $xdccmd = "rm /home/" . $opt{'clusterUser'} . "/.ssh/known_hosts 2>&1";
+    print "XDC cmd $xdccmd";
     $cmd = $logincmd . "sudo -H -u merge ssh -F $mconfig xdc-$proj \"$xdccmd\"";
+    $output=`$cmd`;
     my $result=system($cmd);
     print "Creating new SSH tunnel";
-    $cmd = $logincmd . "sudo -H -u merge ssh -F $mconfig -L " . $port . ":localhost:" . $port . " xdc-$proj -t ssh -L " . $port . ":localhost:" . $vncport . " -N node 2>&1 &";
+    $cmd = $logincmd . "nohup sudo -H -u merge ssh -F $mconfig -L " . $port . ":localhost:" . $port . " xdc-$proj -t ssh -L " . $port . ":localhost:" . $vncport . " -N node 2>&1 </dev/null &";
     $result=system($cmd);
     if ($result != 0)
     {
