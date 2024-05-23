@@ -122,10 +122,11 @@ my $config = "$path/config";
 my $admin=$opt{'clusterUser'};
 my $logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\"";
 $cmd = $logincmd;
-system($cmd);
+my $result=system($cmd);
+print "Result $result\n";
 $cmd = "cp $path/.ssh/merge_key /tmp/ 2>&1";
 my $output=`$cmd`;
-$cmd = "chmod a+r /tmp/merge_key 2>&1";
+$cmd = "chmod g+rw /tmp/merge_key 2>&1";
 $output=`$cmd`;
 open(my $oh, '>', $config); # or die $!;
 print $oh "
@@ -148,18 +149,17 @@ Host *
     UserKnownHostsFile=/dev/null
     ProxyCommand ssh -o StrictHostKeyChecking=no -p 2022 -i /tmp/merge_key -W %h:%p $admin\@jump.mod.deterlab.net";
 close($oh);
-$logincmd =  "mrg login " . $opt{'clusterUser'} . " -p \"" . $opt{'clusterPass'} . "\" && ";
 $output = `ps axuw | grep ssh | grep "localhost:$port " | wc | awk '{print \$1}'`;
 if ($output <= 1)
 {
     # Delete known_hosts on XDC just in case
     my $xdccmd = "rm /home/" . $opt{'clusterUser'} . "/.ssh/known_hosts 2>&1";
     print "XDC cmd $xdccmd";
-    $cmd = $logincmd . "sudo -H -u merge ssh -F $mconfig xdc-$proj \"$xdccmd\"";
+    $cmd = "sudo -H -u merge ssh -F $mconfig xdc-$proj \"$xdccmd\"";
     $output=`$cmd`;
     my $result=system($cmd);
     print "Creating new SSH tunnel";
-    $cmd = $logincmd . "nohup sudo -H -u merge ssh -F $mconfig -L " . $port . ":localhost:" . $port . " xdc-$proj -t ssh -L " . $port . ":localhost:" . $vncport . " -N node 2>&1 </dev/null &";
+    $cmd = "nohup sudo -H -u merge ssh -F $mconfig -L " . $port . ":localhost:" . $port . " xdc-$proj -t ssh -L " . $port . ":localhost:" . $vncport . " -N node 2>&1 </dev/null &";
     $result=system($cmd);
     if ($result != 0)
     {

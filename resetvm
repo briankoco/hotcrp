@@ -389,31 +389,19 @@ if ($success == 1)
 			
 			$sth->execute or die "execution failed: $dbh->errstr()";
 			$sth->finish;
-
 		    }
-		    
-		    for (my $i = 3; $i <= $#ARGV; $i++)
+		    else
 		    {
-			my $id = $ARGV[$i];
-
-			# Check if we need to insert into access
-			my $sth = $dbh->prepare(
-			'SELECT * FROM VMaccess WHERE vmid = ? AND contactID = ?')
-			    or die "prepare statement failed: $dbh->errstr()";
-			$sth->bind_param(1, "$vmtype.$proj");
-			$sth->bind_param(2, $id);
-			$sth->execute or die "execution failed: $dbh->errstr()";
-			$sth->finish;
-			
+			$sth = $dbh->prepare(
+                        'SELECT VNCpass FROM VMs WHERE vmid = ?')
+			or die "prepare statement failed: $dbh->errstr()";
+			$sth->execute("$vmtype.$proj") or die "execution failed: $dbh->errstr()";
 			if ($sth->rows == 0)
 			{			    
-			    $sth = $dbh->prepare(
-				'INSERT INTO VMaccess (vmid, contactId) values (?, ?)')
-				or die "prepare statement failed: $dbh->errstr()";
-			    $sth->bind_param(1, "$vmtype.$proj");
-			    $sth->bind_param(2, $id);
-			    $sth->execute or die "execution failed: $dbh->errstr()";
-			    $sth->finish;
+
+			    while (my $ref = $sth->fetchrow_hashref()) {
+				$vncpass = $ref->{'VNCpass'};
+			    }
 			}
 		    }
 		}

@@ -133,7 +133,7 @@ class StartVm_Page {
         } else {
             include_once('src/pve_api/pve_functions.php');
 
-            $qreq->print_header("Stopping the VM", "resetvm");
+            $qreq->print_header("Stopping the VM", "stopvm");
 
 	    $cmd = "bash firestopvm " . $this->pid . " " . $vmtype;
 	    echo $cmd;
