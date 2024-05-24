@@ -1,5 +1,8 @@
 FROM docker.io/bitnami/php-fpm:latest
 
+ARG WWW_UID
+ARG WWW_GID
+
 # this overwrites the settings in www.conf ...
 RUN rm -f /opt/bitnami/php/etc/common.conf
 COPY docker/files/www.conf /opt/bitnami/php/etc/php-fpm.d/www.conf
@@ -8,4 +11,4 @@ COPY docker/files/www.conf /opt/bitnami/php/etc/php-fpm.d/www.conf
 RUN mkdir -p /opt/bitnami/php/log
 RUN touch /opt/bitnami/php/log/www.access.log
 
-COPY --chown=33:33 . /var/www/hotcrp
+COPY --chown=${WWW_UID}:${WWW_GID} . /var/www/hotcrp
